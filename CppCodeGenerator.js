@@ -26,7 +26,10 @@
 
 define(function (require, exports, module) {
 	"use strict";
-
+    
+    var _CPP_CODE_GEN_H = "h";
+    var _CPP_CODE_GEN_CPP = "cpp";
+    
 	var Repository = staruml.getModule("engine/Repository"),
 		Engine     = staruml.getModule("engine/Engine"),
 		FileSystem = staruml.getModule("filesystem/FileSystem"),
@@ -36,7 +39,15 @@ define(function (require, exports, module) {
 
 	var CodeGenUtils = require("CodeGenUtils");
 
-	var copyrightHeader = "// Test header @ toori67 " ;
+	var copyrightHeader = "/* Test header @ toori67 \n * This is Test\n * also test\n * also test again\n */" ;
+    
+    var versionString = "v0.0.1";
+    
+    // TODO - using map to add headers for relationships. 
+    // TODO - need to check dependencies ( what elem parse first )
+    var _headerMap;
+    
+    
 	/**
 	 * Cpp code generator
 	 * @constructor
@@ -71,20 +82,28 @@ define(function (require, exports, module) {
 			return indent.join("");
 		}
 	};
-
+    
+    
 	CppCodeGenerator.prototype.generate = function (elem, path, options) {
+        var getFilePath = function(extenstions) {
+            var abs_path = path + "/" + elem.name + "." ;
+            if(extenstions === _CPP_CODE_GEN_H) 
+                abs_path += _CPP_CODE_GEN_H;
+            else 
+                abs_path += _CPP_CODE_GEN_CPP; 
+            return abs_path;
+        };
+        
 		var result = new $.Deferred(),
 		self = this,
 		fullPath,
 		directory,
-		codeWriter,
 		file;
         
 		// Package -> as namespace or not
 		if(elem instanceof type.UMLPackage){
 			fullPath = path + "/" + elem.name;
 			directory = FileSystem.getDirectoryForPath(fullPath);
-            
 			directory.create(function (err, stat) {
 				if (!err) {
 					Async.doSequentially(
@@ -95,42 +114,127 @@ define(function (require, exports, module) {
 						false
 					).then(result.resolve, result.reject);
 				} else {
+                    if(err === "AlreadyExists"){
+                        Async.doSequentially(
+                            elem.ownedElements,
+                            function (child) {
+                                return self.generate(child, fullPath, options);
+                            },
+                            false
+					   ).then(result.resolve, result.reject);
+                    }
 				    result.reject(err);
 				}
 			});
-		} else if (elem instanceof type.UMLClass) {
-			result.resolve();
+		
+        
+        } else if (elem instanceof type.UMLClass) {
+            
+            // generate class header elem_name.h 
+            var writeClassHeaderBody = function(codeWriter, elem, options) { console.log("test funct");};
+			file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
+            var skeleton_code = this.writeHeaderSkeletonCode(elem, options, writeClassHeaderBody);
+			FileUtils.writeText(file, skeleton_code, true).then(result.resolve, result.reject);
+            
+            // generate class cpp elem_name.cpp
+            
 		} else if (elem instanceof type.UMLInterface) {
-			fullPath = path + "/" + elem.name + ".h";
-			codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
-			this.writeHeaders(codeWriter, elem, options);
-			this.writeEnd(codeWriter, elem, options);
-			file = FileSystem.getFileForPath(fullPath);
-			FileUtils.writeText(file, codeWriter.getData(), true).then(result.resolve, result.reject);
-		} else {
+            // generate interface header ONLY elem_name.h 
+            var writeInterfaceHeaderBody = function(codeWriter, elem, options) { console.log("writeInterfaceHeaderBody funct");};
+			file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
+            var skeleton_code = this.writeHeaderSkeletonCode(elem, options, writeInterfaceHeaderBody);
+			FileUtils.writeText(file, skeleton_code, true).then(result.resolve, result.reject);
+            
+		} else if (elem instanceof type.UMLEnumeration) {
+            
+            // generate enumeration header ONLY elem_name.h 
+            var writeEnumerationHeader = function(codeWriter, elem, options) { 
+                var _literal_str = "";
+                for(var i=0; i<elem.literals.length; i++){
+                    _literal_str += elem.literals[i].name + (i < elem.literals.length - 1 ? ", " : " ")
+                }
+                // remove trailing <,&nbsp> 
+                codeWriter.writeLine("enum " + elem.name + " { "  + _literal_str + "};");
+            };
+            
+			file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
+            var skeleton_code = this.writeHeaderSkeletonCode(elem, options, writeEnumerationHeader);
+			FileUtils.writeText(file, skeleton_code, true).then(result.resolve, result.reject);
+            
+        }else {
 			result.resolve();
 		}
 		return result.promise();
 	};
 
-	CppCodeGenerator.prototype.writeHeaders = function (codeWriter, elem, options) {
+    /**
+     * Write *.h file. Implement functor to each uml type.
+     * Returns text 
+     * 
+     * @param {Object} elem
+     * @param {Object} options
+     * @param {Object} functor
+     * @return {Object} string
+     */
+    CppCodeGenerator.prototype.writeHeaderSkeletonCode = function (elem, options, funct) {
+        var headerString = "_" +elem.name.toUpperCase() + "_H";
+        var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
+		
         codeWriter.writeLine(copyrightHeader);
-		var headerString = "_" +elem.name.toUpperCase() + "_H";
-		codeWriter.writeLine("#ifndef " + headerString);
+        codeWriter.writeLine();
+		codeWriter.writeLine("#ifndef (" + headerString + ")");
 		codeWriter.writeLine("#define " + headerString);
-
-	}
-
-	CppCodeGenerator.prototype.writeEnd = function (codeWriter, elem, options){
-		var headerString = "_" +elem.name.toUpperCase() + "_H";
+        codeWriter.writeLine();
+        funct(codeWriter, elem, options);
+        codeWriter.writeLine();
 		codeWriter.writeLine("#endif //"+headerString);
-	}
-
-
+        return codeWriter.getData();
+    }
+    
+	CppCodeGenerator.prototype.getVisibility = function (elem) {
+		switch (elem.visibility) {
+		case UML.VK_PUBLIC:
+			return "public";
+		case UML.VK_PROTECTED:
+			return "protected";
+		case UML.VK_PRIVATE:
+			return "private";
+		}
+		return null;
+	};
+    
+    CppCodeGenerator.prototype.getModifiers = function (elem) {
+		var modifiers = [];
+		var visibility = this.getVisibility(elem);
+		if (visibility) {
+			modifiers.push(visibility);
+		}
+        if(visibility) {
+            modifiers.push(visibility);
+        }
+        if(elem.isStatic === true) {
+            modifiers.push("static");
+        }
+        if(elem.isReadOnly === true) {
+            modifiers.push("const");
+        }
+        if(elem.isAbstract === true) {
+            modifiers.push("virtual");
+        }
+		if (elem.isFinalSpecification === true || elem.isLeaf === true) {
+			modifiers.push("final");
+		}
+		return modifiers;
+	};
+                                                       
 	function generate(baseModel, basePath, options){
 		var result = new $.Deferred();
 		var cppCodeGenerator = new CppCodeGenerator(baseModel, basePath);
 		return cppCodeGenerator.generate(baseModel, basePath, options);
 	}
-	exports.generate = generate;
+	
+    function getVersion() {return versionString; };
+    
+    exports.generate = generate;
+    exports.getVersion = getVersion;
 });
