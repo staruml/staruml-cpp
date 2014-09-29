@@ -18,6 +18,27 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 ### UMLInterface
 
 ### UMLEnumeration
+| Weekdays      |
+| ------------- |
+| Monday        |
+| Tuesday       |
+| Saturday      |
+
+converts 
+
+```c
+/* Test header @ toori67 
+ * This is Test
+ * also test
+ * also test again
+ */
+#ifndef (_WEEKDAYS_H)
+#define _WEEKDAYS_H
+
+enum Weekdays { Monday,Tuesday,Saturday };
+
+#endif //_WEEKDAYS_H
+```
 
 ### UMLAssociationEnd
 
