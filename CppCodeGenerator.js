@@ -96,6 +96,15 @@ define(function (require, exports, module) {
             }
             return abs_path;
         };
+        var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
+            var i;
+            var modifierList = cppCodeGen.getModifiers(elem);
+            var modifierStr = "";
+            for (i = 0; i<modifierList.length; i++){
+                modifierStr += modifierList[i] + " ";
+            }
+            codeWriter.writeLine( modifierStr + "enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
+        };
         var writeClassHeader = function (codeWriter, elem, cppCodeGen) {
             var i;
             var write = function (items) {
@@ -106,6 +115,10 @@ define(function (require, exports, module) {
                         codeWriter.writeLine(cppCodeGen.getMemberVariable(item));
                     } else if (item instanceof type.UMLOperation) { // if write method 
                         codeWriter.writeLine(cppCodeGen.getMethod(item));
+                    } else if (item instanceof type.UMLClass) {
+                        writeClassHeader(codeWriter, item, cppCodeGen);
+                    } else if (item instanceof type.UMLEnumeration) {
+                        writeEnumeration(codeWriter, item, cppCodeGen);
                     }
                 }
             };
@@ -147,19 +160,25 @@ define(function (require, exports, module) {
 
             // method 
             var methodList = elem.operations.slice(0);
-
-//                void loadMaskedPoints(CImage img, CImage mask, int idx);
-
-
-            var allMembers = memberAttr.concat(methodList);
-
+            var innerElement = _.each(elem.ownedElements, function(element){
+                return (element instanceof type.UMLClass || element instanceof type.UMLEnumeration);
+            });
+            
+            var allMembers = memberAttr.concat(methodList).concat(innerElement);
+            
+            allMembers = allMembers.concat()
             var classfiedAttributes = cppCodeGen.classifyVisibility(allMembers);
 
             var finalModifier = "";
             if (elem.isFinalSpecification === true || elem.isLeaf === true) {
                 finalModifier = " final ";
             }
-
+            
+            var templatePart = cppCodeGen.getTemplateParameter(elem);
+            if (templatePart.length > 0) {
+                codeWriter.writeLine(templatePart);
+            }
+            
             codeWriter.writeLine("class " + elem.name + finalModifier + writeInheritance(elem) + " {");
             if (classfiedAttributes._public.length > 0) {
                 codeWriter.writeLine("public: ");
@@ -226,9 +245,7 @@ define(function (require, exports, module) {
             
         } else if (elem instanceof type.UMLEnumeration) {
             // generate enumeration header ONLY elem_name.h 
-            var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
-                codeWriter.writeLine(cppCodeGen.getModifiers(elem) + " enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
-            };
+
 			file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
 			FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration), true).then(result.resolve, result.reject);
         } else {
@@ -250,7 +267,6 @@ define(function (require, exports, module) {
         var headerString = "_" + elem.name.toUpperCase() + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
         var includePart = this.getIncludePart(elem);
-        var templatePart = this.getTemplateParameter(elem);
         codeWriter.writeLine(copyrightHeader);
         codeWriter.writeLine();
 		codeWriter.writeLine("#ifndef " + headerString);
@@ -260,9 +276,6 @@ define(function (require, exports, module) {
         if (includePart.length > 0) {
             codeWriter.writeLine(includePart);
             codeWriter.writeLine();
-        }
-        if (templatePart.length > 0) {
-            codeWriter.writeLine(templatePart);
         }
         funct(codeWriter, elem, this);
         
