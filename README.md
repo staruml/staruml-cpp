@@ -48,6 +48,27 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 * all method will treated as pure virtaul.
 
 ### UMLEnumeration
+| Weekdays      |
+| ------------- |
+| Monday        |
+| Tuesday       |
+| Saturday      |
+
+converts 
+
+```c
+/* Test header @ toori67 
+ * This is Test
+ * also test
+ * also test again
+ */
+#ifndef (_WEEKDAYS_H)
+#define _WEEKDAYS_H
+
+enum Weekdays { Monday,Tuesday,Saturday };
+
+#endif //_WEEKDAYS_H
+```
 
 * converted to _Cpp Enum_.  (as a separate `.h` file)
 * `visibility` property to one of modifiers `public`, `protected`, `private`. If visibility is not setted, consider as `protected`.
