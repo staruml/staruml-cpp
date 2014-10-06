@@ -23,7 +23,7 @@
 
 define(function (require, exports, module) {
     "use strict";
-
+    
     /**
      * CodeWriter
      * @constructor
@@ -59,8 +59,12 @@ define(function (require, exports, module) {
      * @param {string} line
      */    
     CodeWriter.prototype.writeLine = function (line) {
+        
         if (line) {
-            this.lines.push(this.indentations.join("") + line);    
+            var line_split_by_new = line.split('\n');
+            for (var i=0; i<line_split_by_new.length; i++){
+                this.lines.push(this.indentations.join("") + line_split_by_new[i]);        
+            }
         } else {
             this.lines.push("");
         }        
@@ -73,7 +77,25 @@ define(function (require, exports, module) {
     CodeWriter.prototype.getData = function () {
         return this.lines.join("\n");
     };
-
+    
+    
+    /**
+     * CodeHelper
+     * @constructor
+     */
+    function CodeHelper(node, delim) {
+        
+        /** @member {Objcet} root node for uml */
+        this.node = node;
+        
+        /** @member {String} header path delimeter */
+        this.delim = delim;
+        
+        /** @member {Objcet} map for parsed header. [ node._id ] = "path" */
+        this.headerMap = {};
+    }
+    
+    
     exports.CodeWriter = CodeWriter;
 
 });

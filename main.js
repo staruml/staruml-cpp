@@ -87,7 +87,7 @@ define(function (require, exports, module) {
 		CommandManager.execute(Commands.FILE_PREFERENCES, CppPreferences.getId());
 	}
 
-	CommandManager.register("Cpp",             CMD_CPP,           function(){console.log("Cpp");});
+	CommandManager.register("Cpp",             CMD_CPP,           CommandManager.doNothing);
 	CommandManager.register("Generate Code...", CMD_CPP_GENERATE,  _handleGenerate);
 	CommandManager.register("Reverse Code...",  CMD_CPP_REVERSE,   function(){console.log("Reverse code...");});
 	CommandManager.register("Configure...",     CMD_CPP_CONFIGURE, _handleConfigure);
@@ -113,7 +113,7 @@ define(function (require, exports, module) {
         return datetime;
     }    
     console.log("================================================");
-    console.log("Java Code Generator Plugin.");
+    console.log("Cpp Code Generator Plugin.");
     console.log("Version time - " + CppCodeGenerator.getVersion() );
     console.log(getCurrentTime());
     console.log("================================================");
