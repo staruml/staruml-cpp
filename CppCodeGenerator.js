@@ -284,6 +284,35 @@ define(function (require, exports, module) {
         return codeWriter.getData();
     };
     
+    /**
+     * Parsing template parameter
+     * 
+     * @param {Object} elem
+     * @return {Object} string
+     */
+    CppCodeGenerator.prototype.getTemplateParameter = function (elem) {
+        var i;
+        var returnTemplateString = "";
+        if (elem.templateParameters.length <= 0) {
+            return returnTemplateString;
+        }
+        var term = [];
+        returnTemplateString = "template<";
+
+        for (i = 0; i < elem.templateParameters.length; i++) {
+            var template = elem.templateParameters[i];
+            var templateStr = template.parameterType + " ";
+            templateStr += template.name + " ";
+            if (template.defaultValue.length !== 0) {
+                templateStr += " = " + template.defaultValue;
+            }
+            term.push(templateStr);
+        }
+        returnTemplateString += term.join(", ");
+        returnTemplateString += ">";
+        return returnTemplateString;
+    };
+        
     CppCodeGenerator.prototype.getIncludePart = function (elem) {
         
         var i;
@@ -305,8 +334,12 @@ define(function (require, exports, module) {
             
             var idx;
             for (i = 0; i < (elementString.length < targetString.length) ? elementString.length : targetString.length; i++) {
-                if (elementString[i] !== targetString[i]) {
-                    idx = i;
+                
+                if (elementString[i] === targetString[i]) {
+                    if (elementString[i] === '/' && targetString[i] === '/') {
+                        idx = i+1;
+                    }
+                } else {
                     break;
                 }
             }
@@ -322,29 +355,7 @@ define(function (require, exports, module) {
             return header;
         };
         
-        CppCodeGenerator.prototype.getTemplateParameter = function (elem) {
-            var i;
-            var returnTemplateString = "";
-            if (elem.templateParameters.length <= 0) {
-                return returnTemplateString;
-            }
-            var term = [];
-            returnTemplateString = "template<";
-            
-            for (i = 0; i < elem.templateParameters.length; i++) {
-                var template = elem.templateParameters[i];
-                var templateStr = template.parameterType + " ";
-                templateStr += template.name + " ";
-                if (template.defaultValue.length !== 0) {
-                    templateStr += " = " + template.defaultValue;
-                }
-                term.push(templateStr);
-            }
-            returnTemplateString += term.join(", ");
-            returnTemplateString += ">";
-            return returnTemplateString;
-        };
-        
+
         var headerString = "";
         if (Repository.getRelationshipsOf(elem).length <= 0) {
             return "";
@@ -385,7 +396,7 @@ define(function (require, exports, module) {
         return headerString;
     };
     
-    // 접근자를 기준으로 public, protected, private 으로 분류 
+    
     CppCodeGenerator.prototype.classifyVisibility = function (items) {
         var public_list = [];
         var protected_list = [];
