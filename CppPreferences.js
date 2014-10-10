@@ -52,6 +52,12 @@ define(function (require, exports, module) {
 			description: "Use vector<> instead of pointer.",
 			type: "Check",
 			default: true
+		},
+		"Cpp.gen.genCpp": {
+			text: "Generate *.cpp file",
+			description: "Generate cpp file",
+			type: "Check",
+			default: true
 		}
 	};
 	
@@ -64,7 +70,8 @@ define(function (require, exports, module) {
 			useTab          	: PreferenceManager.get("Cpp.gen.useTab"),
 			indentSpaces    	: PreferenceManager.get("Cpp.gen.indentSpaces"),
 			useVector			: PreferenceManager.get("Cpp.gen.useVector"),
-			includeHeader 		: PreferenceManager.get("Cpp.gen.includeHeader")
+			includeHeader 		: PreferenceManager.get("Cpp.gen.includeHeader"),
+            genCpp              : PreferenceManager.get("Cpp.gen.genCpp")
 		};
 	}
 	/*
