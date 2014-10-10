@@ -86,6 +86,7 @@ define(function (require, exports, module) {
     
 	CppCodeGenerator.prototype.generate = function (elem, path, options) {
          
+        this.genOptions = options;
         
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -96,6 +97,7 @@ define(function (require, exports, module) {
             }
             return abs_path;
         };
+        
         var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
             var i;
             var modifierList = cppCodeGen.getModifiers(elem);
@@ -105,6 +107,7 @@ define(function (require, exports, module) {
             }
             codeWriter.writeLine( modifierStr + "enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
         };
+        
         var writeClassHeader = function (codeWriter, elem, cppCodeGen) {
             var i;
             var write = function (items) {
@@ -114,7 +117,7 @@ define(function (require, exports, module) {
                     if (item instanceof type.UMLAttribute ||  item instanceof type.UMLAssociationEnd) { // if write member variable
                         codeWriter.writeLine(cppCodeGen.getMemberVariable(item));
                     } else if (item instanceof type.UMLOperation) { // if write method 
-                        codeWriter.writeLine(cppCodeGen.getMethod(item));
+                        codeWriter.writeLine(cppCodeGen.getMethod(item, false));
                     } else if (item instanceof type.UMLClass) {
                         writeClassHeader(codeWriter, item, cppCodeGen);
                     } else if (item instanceof type.UMLEnumeration) {
@@ -139,7 +142,6 @@ define(function (require, exports, module) {
                     // public AAA, private BBB
                     term.push(generalization.visibility + " " + generalization.target.name);
                 }
-//                    inheritString = inheritString.substring(0, inheritString.length - 2);
                 inheritString += term.join(", ");
                 return inheritString;
             };
@@ -160,20 +162,23 @@ define(function (require, exports, module) {
 
             // method 
             var methodList = elem.operations.slice(0);
-            var innerElement = _.each(elem.ownedElements, function(element){
-                return (element instanceof type.UMLClass || element instanceof type.UMLEnumeration);
-            });
+            var innerElement = [];
+            for (i = 0; i < elem.ownedElements.length; i++){
+                var element = elem.ownedElements[i];
+                if (element instanceof type.UMLClass || element instanceof type.UMLEnumeration) {
+                    innerElement.push(element);
+                }
+            }
             
             var allMembers = memberAttr.concat(methodList).concat(innerElement);
             
-            allMembers = allMembers.concat()
             var classfiedAttributes = cppCodeGen.classifyVisibility(allMembers);
 
+            
             var finalModifier = "";
             if (elem.isFinalSpecification === true || elem.isLeaf === true) {
                 finalModifier = " final ";
             }
-            
             var templatePart = cppCodeGen.getTemplateParameter(elem);
             if (templatePart.length > 0) {
                 codeWriter.writeLine(templatePart);
@@ -200,6 +205,62 @@ define(function (require, exports, module) {
             }
 
             codeWriter.writeLine("}");
+        };
+      
+        var writeClassBody = function (codeWriter, elem, cppCodeGen) {
+            var i=0;
+            
+            var writeClassMethod = function (elemList) {
+                
+                for (i = 0; i<elemList._public.length; i++){
+                    var item = elemList._public[i];
+                    if (item instanceof type.UMLOperation) { // if write method
+                        codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    }else if( item instanceof type.UMLClass) {
+                        writeClassBody(codeWriter, item, cppCodeGen);
+                    }
+                }
+                
+                for (i = 0; i<elemList._protected.length; i++){
+                    var item = elemList._protected[i];
+                    if (item instanceof type.UMLOperation) { // if write method
+                        codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    }else if( item instanceof type.UMLClass) {
+                        writeClassBody(codeWriter, item, cppCodeGen);
+                    }
+                }
+                
+                for (i = 0; i<elemList._private.length; i++){
+                    var item = elemList._private[i];
+                    if (item instanceof type.UMLOperation) { // if write method
+                        codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    }else if( item instanceof type.UMLClass) {
+                        writeClassBody(codeWriter, item, cppCodeGen);
+                    }
+                }
+            };
+            
+            // parsing class 
+            var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0));
+            codeWriter.writeLine("/**");
+            codeWriter.writeLine(" * " + elem.name + " body");
+            codeWriter.writeLine(" */");
+            codeWriter.writeLine();
+            writeClassMethod(methodList);
+            
+            // parsing nested class
+            var innerClass = [];
+            for (i = 0; i<elem.ownedElements.length; i++){
+                var element = elem.ownedElements[i];
+                if ( element instanceof type.UMLClass) {
+                    innerClass.push(element);
+                }
+            }
+            if (innerClass.length > 0){
+                innerClass = cppCodeGen.classifyVisibility(innerClass);
+                writeClassMethod(innerClass);
+            }
+            
         };
         
 		var result = new $.Deferred(),
@@ -233,7 +294,10 @@ define(function (require, exports, module) {
 			FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
             
             // generate class cpp elem_name.cpp
-            
+            if (options.genCpp){
+                file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_CPP));
+                FileUtils.writeText(file, this.writeBodySkeletonCode(elem, options, writeClassBody), true).then(result.resolve, result.reject);
+            }
 		
         } else if (elem instanceof type.UMLInterface) {
             /**
@@ -242,7 +306,7 @@ define(function (require, exports, module) {
             // generate interface header ONLY elem_name.h
 			file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
 			FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
-            
+
         } else if (elem instanceof type.UMLEnumeration) {
             // generate enumeration header ONLY elem_name.h 
 
@@ -285,6 +349,26 @@ define(function (require, exports, module) {
     };
     
     /**
+     * Write *.cpp file. Implement functor to each uml type.
+     * Returns text 
+     * 
+     * @param {Object} elem
+     * @param {Object} options
+     * @param {Object} functor
+     * @return {Object} string
+     */
+    CppCodeGenerator.prototype.writeBodySkeletonCode = function (elem, options, funct) {
+        var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
+        
+        codeWriter.writeLine(copyrightHeader);
+        codeWriter.writeLine();
+        codeWriter.writeLine( "#include \"" +  elem.name + ".h\"");
+        codeWriter.writeLine();
+        funct(codeWriter, elem, this);
+        return codeWriter.getData();
+    }
+    
+    /**
      * Parsing template parameter
      * 
      * @param {Object} elem
@@ -312,7 +396,13 @@ define(function (require, exports, module) {
         returnTemplateString += ">";
         return returnTemplateString;
     };
-        
+    
+    /**
+     * Parsing include header
+     * 
+     * @param {Object} elem
+     * @return {Object} string
+     */
     CppCodeGenerator.prototype.getIncludePart = function (elem) {
         
         var i;
@@ -396,7 +486,12 @@ define(function (require, exports, module) {
         return headerString;
     };
     
-    
+    /**
+     * Classfy method and attribute by accessor.(public, private, protected)
+     * 
+     * @param {Object} items
+     * @return {Object} list
+     */
     CppCodeGenerator.prototype.classifyVisibility = function (items) {
         var public_list = [];
         var protected_list = [];
@@ -423,6 +518,12 @@ define(function (require, exports, module) {
         };
     };
     
+    /**
+     * generate variables from attributes[i]
+     * 
+     * @param {Object} elem
+     * @return {Object} string
+     */  
     CppCodeGenerator.prototype.getMemberVariable = function (elem) {
         if (elem.name.length > 0) {
 			var terms = [];
@@ -445,7 +546,14 @@ define(function (require, exports, module) {
 		}
 	};
     
-    CppCodeGenerator.prototype.getMethod = function (elem) {
+    /**
+     * generate methods from operations[i]
+     * 
+     * @param {Object} elem
+     * @param {boolean} isCppBody
+     * @return {Object} string
+     */  
+    CppCodeGenerator.prototype.getMethod = function (elem, isCppBody) {
         if (elem.name.length > 0) {
             var i;
             var methodStr = "";
@@ -471,19 +579,67 @@ define(function (require, exports, module) {
             
             
             methodStr += ((returnTypeParam.length > 0) ? returnTypeParam[0].type : "void") + " ";
-            methodStr += elem.name;
-            methodStr += "(" + inputParamStrings.join(", ") + ")";
             
-            if (elem.isLeaf === true) {
-                methodStr += " final";
-            } else if (elem.isAbstract === true) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것 
-                methodStr += " = 0";
+            if( isCppBody ){
+                var t_elem = elem;
+                var specifier = "";
+                
+                while (t_elem._parent instanceof type.UMLClass){
+                    specifier = t_elem._parent.name + "::" + specifier;
+                    t_elem = t_elem._parent;
+                }
+                
+                var indentLine = ""
+                
+                for (i = 0; i < this.genOptions.indentSpaces; i++) {
+                    indentLine += " ";
+                }
+                
+                methodStr += specifier;
+                methodStr += elem.name;
+                methodStr += "(" + inputParamStrings.join(", ") + ")" + " {\n";
+                if (returnTypeParam.length > 0) {
+					var returnType = returnTypeParam[0].type;
+					if (returnType === "boolean" || returnType === "bool") {
+                        methodStr += indentLine + "return false;";
+					} else if (returnType === "int" || returnType === "long" || returnType === "short" || returnType === "byte") {
+                        methodStr += indentLine + "return 0;";
+					} else if (returnType === "float") {
+                        methodStr += indentLine + "return 0.0;";
+					} else if (returnType === "double") {
+                        methodStr += indentLine + "return 0.0;";
+					} else if (returnType === "char") {
+                        methodStr += indentLine + "return '0';";
+					} else if (returnType === "string" || returnType === "String") {
+                        methodStr += indentLine + 'return "";';
+					} else {
+                        methodStr += indentLine + "return null;";
+					}
+				}
+                methodStr += "\n}";
+            } else {
+                methodStr += elem.name;
+                methodStr += "(" + inputParamStrings.join(", ") + ")";
+
+                if (elem.isLeaf === true) {
+                    methodStr += " final";
+                } else if (elem.isAbstract === true) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것 
+                    methodStr += " = 0";
+                }
+                methodStr += ";";   
             }
-            methodStr += ";";
+            
+            
             return methodStr;
         }
     };
     
+    /**
+     * generate doc string from doc element
+     * 
+     * @param {Object} text
+     * @return {Object} string
+     */  
     CppCodeGenerator.prototype.getDocuments = function (text) {
         var docs = "";
 		if (_.isString(text) && text.length !== 0) {
@@ -498,6 +654,12 @@ define(function (require, exports, module) {
         return docs;
 	};
     
+    /**
+     * parsing visibility from element
+     * 
+     * @param {Object} elem
+     * @return {Object} string
+     */  
 	CppCodeGenerator.prototype.getVisibility = function (elem) {
 		switch (elem.visibility) {
 		case UML.VK_PUBLIC:
@@ -510,6 +672,12 @@ define(function (require, exports, module) {
 		return null;
 	};
     
+    /**
+     * parsing modifiers from element
+     * 
+     * @param {Object} elem
+     * @return {Object} list
+     */  
     CppCodeGenerator.prototype.getModifiers = function (elem) {
 		var modifiers = [];
 
@@ -525,6 +693,12 @@ define(function (require, exports, module) {
 		return modifiers;
 	};
     
+    /**
+     * parsing type from element
+     * 
+     * @param {Object} elem
+     * @return {Object} string
+     */      
     CppCodeGenerator.prototype.getType = function (elem) {
 		var _type = "void";
 		
@@ -556,6 +730,12 @@ define(function (require, exports, module) {
 		return _type;
 	};
     
+    /**
+     * get all super class / interface from element
+     * 
+     * @param {Object} elem
+     * @return {Object} list
+     */  
     CppCodeGenerator.prototype.getSuperClasses = function (elem) {
 		var generalizations = Repository.getRelationshipsOf(elem, function (rel) {
 			return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.source === elem);
@@ -563,12 +743,14 @@ define(function (require, exports, module) {
         return generalizations;
 	};
     
+    
+    
 	function generate(baseModel, basePath, options) {
 		var result = new $.Deferred();
 		var cppCodeGenerator = new CppCodeGenerator(baseModel, basePath);
 		return cppCodeGenerator.generate(baseModel, basePath, options);
     }
-	
+    
     function getVersion() {return versionString; }
     
     exports.generate = generate;
