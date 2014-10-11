@@ -102,10 +102,10 @@ define(function (require, exports, module) {
             var i;
             var modifierList = cppCodeGen.getModifiers(elem);
             var modifierStr = "";
-            for (i = 0; i<modifierList.length; i++){
+            for (i = 0; i < modifierList.length; i++) {
                 modifierStr += modifierList[i] + " ";
             }
-            codeWriter.writeLine( modifierStr + "enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
+            codeWriter.writeLine(modifierStr + "enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
         };
         
         var writeClassHeader = function (codeWriter, elem, cppCodeGen) {
@@ -163,7 +163,7 @@ define(function (require, exports, module) {
             // method 
             var methodList = elem.operations.slice(0);
             var innerElement = [];
-            for (i = 0; i < elem.ownedElements.length; i++){
+            for (i = 0; i < elem.ownedElements.length; i++) {
                 var element = elem.ownedElements[i];
                 if (element instanceof type.UMLClass || element instanceof type.UMLEnumeration) {
                     innerElement.push(element);
@@ -208,33 +208,33 @@ define(function (require, exports, module) {
         };
       
         var writeClassBody = function (codeWriter, elem, cppCodeGen) {
-            var i=0;
-            
+            var i = 0;
+            var item;
             var writeClassMethod = function (elemList) {
                 
-                for (i = 0; i<elemList._public.length; i++){
-                    var item = elemList._public[i];
+                for (i = 0; i < elemList._public.length; i++) {
+                    item = elemList._public[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
-                    }else if( item instanceof type.UMLClass) {
+                    } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
                 }
                 
-                for (i = 0; i<elemList._protected.length; i++){
-                    var item = elemList._protected[i];
+                for (i = 0; i < elemList._protected.length; i++) {
+                    item = elemList._protected[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
-                    }else if( item instanceof type.UMLClass) {
+                    } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
                 }
                 
-                for (i = 0; i<elemList._private.length; i++){
-                    var item = elemList._private[i];
+                for (i = 0; i < elemList._private.length; i++) {
+                    item = elemList._private[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
-                    }else if( item instanceof type.UMLClass) {
+                    } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
                 }
@@ -250,13 +250,13 @@ define(function (require, exports, module) {
             
             // parsing nested class
             var innerClass = [];
-            for (i = 0; i<elem.ownedElements.length; i++){
+            for (i = 0; i < elem.ownedElements.length; i++) {
                 var element = elem.ownedElements[i];
-                if ( element instanceof type.UMLClass) {
+                if (element instanceof type.UMLClass) {
                     innerClass.push(element);
                 }
             }
-            if (innerClass.length > 0){
+            if (innerClass.length > 0) {
                 innerClass = cppCodeGen.classifyVisibility(innerClass);
                 writeClassMethod(innerClass);
             }
@@ -294,7 +294,7 @@ define(function (require, exports, module) {
 			FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
             
             // generate class cpp elem_name.cpp
-            if (options.genCpp){
+            if (options.genCpp) {
                 file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_CPP));
                 FileUtils.writeText(file, this.writeBodySkeletonCode(elem, options, writeClassBody), true).then(result.resolve, result.reject);
             }
@@ -362,11 +362,11 @@ define(function (require, exports, module) {
         
         codeWriter.writeLine(copyrightHeader);
         codeWriter.writeLine();
-        codeWriter.writeLine( "#include \"" +  elem.name + ".h\"");
+        codeWriter.writeLine("#include \"" +  elem.name + ".h\"");
         codeWriter.writeLine();
         funct(codeWriter, elem, this);
         return codeWriter.getData();
-    }
+    };
     
     /**
      * Parsing template parameter
@@ -427,7 +427,7 @@ define(function (require, exports, module) {
                 
                 if (elementString[i] === targetString[i]) {
                     if (elementString[i] === '/' && targetString[i] === '/') {
-                        idx = i+1;
+                        idx = i + 1;
                     }
                 } else {
                     break;
@@ -523,7 +523,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} elem
      * @return {Object} string
-     */  
+     */
     CppCodeGenerator.prototype.getMemberVariable = function (elem) {
         if (elem.name.length > 0) {
 			var terms = [];
@@ -552,7 +552,7 @@ define(function (require, exports, module) {
      * @param {Object} elem
      * @param {boolean} isCppBody
      * @return {Object} string
-     */  
+     */
     CppCodeGenerator.prototype.getMethod = function (elem, isCppBody) {
         if (elem.name.length > 0) {
             var i;
@@ -577,19 +577,18 @@ define(function (require, exports, module) {
                 inputParamStrings.push(inputParam.type + " " + inputParam.name);
             }
             
-            
             methodStr += ((returnTypeParam.length > 0) ? returnTypeParam[0].type : "void") + " ";
             
-            if( isCppBody ){
+            if (isCppBody) {
                 var t_elem = elem;
                 var specifier = "";
                 
-                while (t_elem._parent instanceof type.UMLClass){
+                while (t_elem._parent instanceof type.UMLClass) {
                     specifier = t_elem._parent.name + "::" + specifier;
                     t_elem = t_elem._parent;
                 }
                 
-                var indentLine = ""
+                var indentLine = "";
                 
                 for (i = 0; i < this.genOptions.indentSpaces; i++) {
                     indentLine += " ";
@@ -626,7 +625,7 @@ define(function (require, exports, module) {
                 } else if (elem.isAbstract === true) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것 
                     methodStr += " = 0";
                 }
-                methodStr += ";";   
+                methodStr += ";";
             }
             
             
@@ -639,7 +638,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} text
      * @return {Object} string
-     */  
+     */
     CppCodeGenerator.prototype.getDocuments = function (text) {
         var docs = "";
 		if (_.isString(text) && text.length !== 0) {
@@ -659,7 +658,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} elem
      * @return {Object} string
-     */  
+     */
 	CppCodeGenerator.prototype.getVisibility = function (elem) {
 		switch (elem.visibility) {
 		case UML.VK_PUBLIC:
@@ -677,7 +676,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} elem
      * @return {Object} list
-     */  
+     */
     CppCodeGenerator.prototype.getModifiers = function (elem) {
 		var modifiers = [];
 
@@ -698,7 +697,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} elem
      * @return {Object} string
-     */      
+     */
     CppCodeGenerator.prototype.getType = function (elem) {
 		var _type = "void";
 		
@@ -735,7 +734,7 @@ define(function (require, exports, module) {
      * 
      * @param {Object} elem
      * @return {Object} list
-     */  
+     */
     CppCodeGenerator.prototype.getSuperClasses = function (elem) {
 		var generalizations = Repository.getRelationshipsOf(elem, function (rel) {
 			return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.source === elem);
