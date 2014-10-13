@@ -204,7 +204,7 @@ define(function (require, exports, module) {
                 codeWriter.outdent();
             }
 
-            codeWriter.writeLine("}");
+            codeWriter.writeLine("};");
         };
       
         var writeClassBody = function (codeWriter, elem, cppCodeGen) {
