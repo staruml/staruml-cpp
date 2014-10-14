@@ -204,7 +204,7 @@ define(function (require, exports, module) {
                 codeWriter.outdent();
             }
 
-            codeWriter.writeLine("}");
+            codeWriter.writeLine("};");
         };
       
         var writeClassBody = function (codeWriter, elem, cppCodeGen) {
@@ -604,14 +604,14 @@ define(function (require, exports, module) {
                         methodStr += indentLine + "return false;";
 					} else if (returnType === "int" || returnType === "long" || returnType === "short" || returnType === "byte") {
                         methodStr += indentLine + "return 0;";
-					} else if (returnType === "float") {
-                        methodStr += indentLine + "return 0.0;";
-					} else if (returnType === "double") {
+					} else if (returnType === "double" || returnType === "float") {
                         methodStr += indentLine + "return 0.0;";
 					} else if (returnType === "char") {
                         methodStr += indentLine + "return '0';";
 					} else if (returnType === "string" || returnType === "String") {
                         methodStr += indentLine + 'return "";';
+					} else if (returnType === "void") {
+                        methodStr += indentLine + "return;";
 					} else {
                         methodStr += indentLine + "return null;";
 					}
