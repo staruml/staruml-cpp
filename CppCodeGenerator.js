@@ -206,7 +206,7 @@ define(function (require, exports, module) {
 
             codeWriter.writeLine("};");
         };
-      
+
         var writeClassBody = function (codeWriter, elem, cppCodeGen) {
             var i = 0;
             var item;
@@ -262,8 +262,8 @@ define(function (require, exports, module) {
             }
             
         };
-        
-		var result = new $.Deferred(),
+
+        var result = new $.Deferred(),
 		self = this,
 		fullPath,
 		directory,
