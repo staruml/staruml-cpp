@@ -11,7 +11,7 @@ universal-character-name        '\\u'{hex-quad}{1,2}
 hex-quad                        {hexadecimal-digit}{4}
 
 /* integer */
-integer-literal                 [{decimal-literal}|{octal-literal}|{hexadecimal-literal}]{integer-suffix}?
+integer-literal                 {decimal-literal}|{octal-literal}|{hexadecimal-literal}{integer-suffix}?
 decimal-literal                 {nonzero-digit}{digit}*
 octal-literal                   {zero}{octal-digit}*
 hexadecimal-literal             '0x'{hexadecimal-digit}+
@@ -46,10 +46,16 @@ string-literal                  'L'?'"'{s-char-sequence}*'"'
 s-char-sequence                 {s-char}+
 s-char                          [^"\\\n]|{escape-sequence}|{universal-character-name}
 
+/* pointer */
+pointer-literal                 "nullptr"
+
+/* boolean */
+boolean-literal                 "true"|"false"
+
 /* identifier */ 
-CppLetter                      [a-zA-Z$_]|{CppUnicodeLetter}
-CppLetterOrDigit               [a-zA-Z0-9$_]|{CppUnicodeLetterorDigit}
-CppIdentifier                  {CppLetter}{CppLetterOrDigit}*
+CppLetter                       [a-zA-Z$_]|{CppUnicodeLetter}
+CppLetterOrDigit                [a-zA-Z0-9$_]|{CppUnicodeLetterorDigit}
+CppIdentifier                   {CppLetter}{CppLetterOrDigit}*
 
 /* White space */  
 WHITESPACE              {whitespace-characters}
@@ -123,7 +129,7 @@ Comment                         [/][\*]({NotCommentEnd}\n|\t])*[\*][/]
 "else"                          return 'ELSE';
 "enum"                          return 'ENUM';
 "explicit"                      return 'EXPLICIT';
-"export"                        retrun 'EXPORT';
+"export"                        return 'EXPORT';
 "extern"                        return 'EXTERN';
 "float"                         return 'FLOAT';
 "for"                           return 'FOR';
@@ -137,7 +143,6 @@ Comment                         [/][\*]({NotCommentEnd}\n|\t])*[\*][/]
 "namespace"                     return 'NAMESPACE';
 "new"                           return 'NEW';
 "noexcept"                      return 'NOEXCEPT';
-"nullptr"                       return 'NULLPTR';
 "operator"                      return 'OPERATOR';
 "private"                       return 'PRIVATE';
 "protected"                     return 'PROTECTED';
@@ -170,14 +175,13 @@ Comment                         [/][\*]({NotCommentEnd}\n|\t])*[\*][/]
 "wchar_t"                       return 'WCHAR_T';
 "while"                         return 'WHILE';
 
-/* boolean literal */
-"true"|"false"                  return 'BooleanLiteral';
-
-
+/* literals */
+{boolean-literal}               return 'BooleanLiteral';
 {character-literal}             return 'CharacterLiteral';
 {string-literal}                return 'StringLiteral';
 {integer-literal}               return 'IntegerLiteral';
 {floating-literal}              return 'FloatingLiteral';
+{pointer-literal}               return 'PointerLiteral';
 
 /* identifier */
 {CppIdentifier}                 return 'Identifier';
