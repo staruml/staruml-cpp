@@ -14,7 +14,8 @@
 %token SHORT STATIC STRICTFP SUPER SWITCH SYNCHRONIZED
 %token THIS THROW THROWS TRANSIENT TRY VOID VOLATILE WHILE
 
-%token IntegerLiteral FloatingPointLiteral BooleanLiteral CharacterLiteral StringLiteral NullLiteral
+/* literal */
+%token IntegerLiteral FloatingLiteral BooleanLiteral CharacterLiteral StringLiteral NullLiteral PointerLiteral
 
 %token LPAREN RPAREN LBRACE RBRACE LBRACK RBRACK SEMI COMMA DOT
 
@@ -30,72 +31,82 @@
 %start compilationUnit
 
 %%
-compilationUnit
-    : i assign expr EOF
-        {
-            return {
-                "node":"compilationUnit",
-                "var_name":$1,
-                "op":$2,
-                "exp":$3
-            };
-        }
+compilationUnit : simple-expression EOF
+    | simple-expression simple-expression EOF
+    | simple-expression simple-expression simple-expression EOF
     ;
 
-i
-    : Identifier
-        {
-            console.log('Var_name ' + $1);
-        }
+
+/* lex.literal.kinds */
+literal : IntegerLiteral
+    |FloatingLiteral
+    |BooleanLiteral
+    |CharacterLiteral
+    |StringLiteral
+    |NullLiteral
+    |PointerLiteral
     ;
-assign
-    :   ASSIGN
-        {
-            console.log('Assign ' + $1);
-        }
-    |   ADD_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   SUB_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   MUL_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   AND_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   OR_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   XOR_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   MOD_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
-    |   LSHIFT_ASSIGN 
-        {
-            console.log('Assign ' + $1);
-        }
+    
+    
+    
+/* expr.prim.general */    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+simple-expression : type var_name assign expr SEMI{
+        console.log($4);
+    };
+    
+type : Identifier {
+        console.log($1);
+    }| INT {
+        console.log($1);
+    }| DOUBLE {
+        console.log($1);
+    }| BOOLEAN {
+        console.log($1);
+    };
+    
+var_name : Identifier {
+        console.log($1);
+    };
+    
+assign : ASSIGN 
+    | ADD_ASSIGN 
+    | SUB_ASSIGN
+    | MUL_ASSIGN 
+    | AND_ASSIGN 
+    | OR_ASSIGN 
+    | XOR_ASSIGN 
+    | MOD_ASSIGN 
+    | LSHIFT_ASSIGN 
     ;
 expr
     :   number
-    |   number operator number
-    |   string
-    |   string operator string
-    ;
+    |   number operator number{
+        $$ = $1;
+        $$ += $2;
+        $$ += $3;
+    }|   string
+    |   string operator string{
+        $$ = $1;
+        $$ += $2;
+        $$ += $3;
+    };
 
 number
     :   IntegerLiteral 
-    |   FloatingPointLiteral 
+    |   FloatingLiteral 
     ;
 operator
     :   ADD
