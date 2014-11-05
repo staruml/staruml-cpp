@@ -331,9 +331,6 @@ enumerator
 namespace-name
     : identifier
     ;
-original-namespace-name
-    : identifier
-    ;
 namespace-definition
     : named-namespace-definition
     | unnamed-namespace-definition
@@ -347,8 +344,8 @@ original-namespace-definition
     | INLINE NAMESPACE identifier LBRACE namespace-body RBRACE
     ;
 extension-namespace-definition
-    : NAMESPACE original-namespace-name LBRACE namespace-body RBRACE
-    | INLINE NAMESPACE original-namespace-name LBRACE namespace-body RBRACE
+    : NAMESPACE identifier LBRACE namespace-body RBRACE
+    | INLINE NAMESPACE identifier LBRACE namespace-body RBRACE
     ;
 unnamed-namespace-definition
     : NAMESPACE LBRACE namespace-body RBRACE
@@ -358,15 +355,14 @@ namespace-body
     : %empty
     | declaration-seq
     ;
-
 namespace-alias-definition
     : NAMESPACE identifier ASSIGN qualified-namespace-specifier SEMI
     ;
 qualified-namespace-specifier
-    : namespace-name
-    | nested-name-specifier namespace-name
-    | DBL_COLON namespace-name
-    | DBL_COLON nested-name-specifier namespace-name
+    : identifier
+    | nested-name-specifier identifier
+    | DBL_COLON identifier
+    | DBL_COLON nested-name-specifier identifier
     ;
 /* namespace.udecl */
 using-declaration
@@ -377,15 +373,15 @@ using-declaration
  	| USING DBL_COLON unqualified-id SEMI
     ;
 /* namespace.udir */
-using-directive
-    : USING NAMESPACE identifier SEMI // fixed namespace-name -> identifier
-    | USING NAMESPACE nested-name-specifier namespace-name SEMI
-    | USING NAMESPACE DBL_COLON namespace-name SEMI
-    | USING NAMESPACE DBL_COLON nested-name-specifier namespace-name SEMI
-    | attribute-specifier-seq USING NAMESPACE namespace-name SEMI
-    | attribute-specifier-seq USING NAMESPACE nested-name-specifier namespace-name SEMI
-    | attribute-specifier-seq USING NAMESPACE DBL_COLON namespace-name SEMI
-    | attribute-specifier-seq USING NAMESPACE DBL_COLON nested-name-specifier namespace-name SEMI
+using-directive // fixed namespace-name -> identifier
+    : USING NAMESPACE identifier SEMI 
+    | USING NAMESPACE nested-name-specifier identifier SEMI
+    | USING NAMESPACE DBL_COLON identifier SEMI
+    | USING NAMESPACE DBL_COLON nested-name-specifier identifier SEMI
+    | attribute-specifier-seq USING NAMESPACE identifier SEMI
+    | attribute-specifier-seq USING NAMESPACE nested-name-specifier identifier SEMI
+    | attribute-specifier-seq USING NAMESPACE DBL_COLON identifier SEMI
+    | attribute-specifier-seq USING NAMESPACE DBL_COLON nested-name-specifier identifier SEMI
     ;
 /* dcl.asm */
 asm-definition
@@ -883,7 +879,7 @@ qualified-id
     ;
 nested-name-specifier 
     : type-name DBL_COLON
-    | namespace-name DBL_COLON
+    | identifier DBL_COLON
     | decltype-specifier DBL_COLON
  	| nested-name-specifier identifier DBL_COLON
     | nested-name-specifier simple-template-id DBL_COLON
