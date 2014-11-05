@@ -1,3 +1,3 @@
 #!/bin/bash
 
-jison "$PWD/cpp.jison" "$PWD/cpp.jisonlex"  -t -p lalr
+jison "cpp.jison" "cpp.jisonlex"  -t -p lalr > jisonOutput.txt
