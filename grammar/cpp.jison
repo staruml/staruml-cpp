@@ -31,25 +31,10 @@
 
 %%
 translation-unit
-    : test-seq EOF
+    : EOF
+    | declaration-seq EOF
     ;
 
-test-seq
-    : lines
-    | test-seq lines
-    ;
-lines
-    : statement
-    | declaration
-    ;
-expression-seq
-    : expression
-    | expression-seq expression
-    ;
-statement-seq
-    : statement
-    | statement-seq statement
-    ;
 /*
  * this is for opt things
  */ 
@@ -190,8 +175,8 @@ postfix-expression
  	| postfix-expression LBRACK braced-init-list-opt RBRACK
  	| postfix-expression LPAREN expression-list-opt RPAREN
  	| simple-type-specifier LPAREN expression-list-opt RPAREN
- 	| typename-specifier LPAREN expression-list-opt RPAREN
  	| simple-type-specifier braced-init-list
+ 	| typename-specifier LPAREN expression-list-opt RPAREN
  	| typename-specifier braced-init-list
  	| postfix-expression DOT TEMPLATE-opt id-expression
  	| postfix-expression INDIR_MBR_ACCESS TEMPLATE-opt id-expression
@@ -413,7 +398,7 @@ declaration
         console.log("block");
     }
     | function-definition {
-        console.log("> function");
+        console.log("============outside fuction================\n");
     }
  	| template-declaration {
         console.log("template");
@@ -486,6 +471,7 @@ decl-specifier-seq
     : decl-specifier attribute-specifier-seq-opt
  	| decl-specifier decl-specifier-seq
     ;
+    
 /* dcl.stc */
 storage-class-specifier
     : AUTO
@@ -565,7 +551,8 @@ enum-name
     : identifier
     ;
 enum-specifier
-    : enum-head LBRACE enumerator-list-opt RBRACE
+    : enum-head LBRACE RBRACE
+    | enum-head LBRACE enumerator-list RBRACE
  	| enum-head LBRACE enumerator-list COMMA RBRACE
     ;
 enum-head
@@ -593,14 +580,11 @@ enum-base
     ;
 enumerator-list
     : enumerator-definition
- 	| enumerator-list COLON enumerator-definition
+ 	| enumerator-list COMMA enumerator-definition
     ;
 enumerator-definition
-    : enumerator
-    | enumerator ASSIGN constant-expression
-    ;
-enumerator
     : identifier
+    | identifier ASSIGN constant-expression
     ;
 /* namespace.def */
 namespace-name
@@ -734,11 +718,11 @@ ptr-declarator
 noptr-declarator
     : declarator-id
     | declarator-id attribute-specifier-seq
- 	| noptr-declarator parameters-and-qualifiers                    // need to check for future
+ 	| noptr-declarator parameters-and-qualifiers
     | noptr-declarator brack-part-seq attribute-specifier-seq
     | noptr-declarator brack-part-seq
-    | declarator-id brack-part-seq attribute-specifier-seq          // for parsing "char *argv[][][][][]"
-    | declarator-id brack-part-seq                                  // for parsing "char *argv[][][][][]"
+    | declarator-id brack-part-seq attribute-specifier-seq
+    | declarator-id brack-part-seq
  	| LPAREN ptr-declarator RPAREN
     ;
 brack-part-seq
@@ -751,7 +735,12 @@ brack-part
     ;
 parameters-and-qualifiers
     : LPAREN parameter-declaration-clause RPAREN attribute-specifier-seq-opt cv-qualifier-seq-opt ref-qualifier-opt exception-specification-opt {
-        console.log("parameters-and-qualifiers " + $2);
+        $$ = $1 + " " + $2 + " " + $3;
+        console.log("\n============inside fuction================");
+    }
+    | LPAREN RPAREN attribute-specifier-seq-opt cv-qualifier-seq-opt ref-qualifier-opt exception-specification-opt {
+        $$ = $1 + " " + $2;
+        console.log("\n============inside fuction================");
     }
     ;
 cv-qualifier-seq-opt
@@ -838,8 +827,14 @@ parameter-declaration
     ;
  	
 /* dcl.fct.def.general */
+//
+// c++0x11 has ambiguity lots of.
+// void push( ... ) { ... }
+// if { ... } has some if-switch-etc-expr it consider as function, but lalr can't find alot
+// so change bnf 
+//
 function-definition
-    : attribute-specifier-seq-opt decl-specifier-seq-opt declarator function-body 
+    : attribute-specifier-seq-opt decl-specifier-seq declarator function-body 
  	| attribute-specifier-seq-opt decl-specifier-seq-opt declarator ASSIGN DEFAULT SEMI
  	| attribute-specifier-seq-opt decl-specifier-seq-opt declarator ASSIGN DELETE SEMI
     ;
@@ -854,20 +849,13 @@ function-body
         console.log("function body");
     }
     ;
-ctor-initializer-opt
-    : %empty
-    | ctor-initializer
-    ;
-
-
-
 /* dcl.init */
 initializer
     : brace-or-equal-initializer
  	| LPAREN expression-list RPAREN
     ;
 brace-or-equal-initializer
-    : ASSIGN initializer-clause
+    : ASSIGN initializer-clause 
  	| braced-init-list
     ;
 initializer-clause
@@ -875,11 +863,14 @@ initializer-clause
  	| braced-init-list
     ;
 initializer-list	 
- 	: initializer-clause ELLIPSIS-opt
- 	| initializer-list COMMA initializer-clause ELLIPSIS-opt
+ 	: initializer-clause
+    | initializer-clause ELLIPSIS
+ 	| initializer-list COMMA initializer-clause
+    | initializer-list COMMA initializer-clause ELLIPSIS
     ;
 braced-init-list
-    : LBRACE initializer-list COMMA-opt RBRACE
+    : LBRACE initializer-list RBRACE
+    | LBRACE initializer-list COMMA RBRACE
  	| LBRACE RBRACE
     ;
 
@@ -897,30 +888,13 @@ braced-init-list
 /* stmt.stmt */
 
 statement
-    : labeled-statement {
-        $$ += "/labeled-statement : " + $1;
-    }
- 	| attribute-specifier-seq-opt expression-statement {
-        $$ += "/expression-statement : " + $2;
-    }
- 	| attribute-specifier-seq compound-statement {
-        $$ += "/compound-statement : " + $2;
-    }
- 	| compound-statement {
-        $$ += "/compound-statement : " + $1;
-    }
- 	| attribute-specifier-seq-opt selection-statement {
-        $$ += "/selection-statement : " + $2;
-    }
- 	| attribute-specifier-seq-opt iteration-statement {
-        $$ += "/iteration-statement : " + $2;
-    }
- 	| attribute-specifier-seq-opt jump-statement {
-        $$ += "/jump-statement : " + $2;
-    }
- 	| declaration-statement {
-        $$ += "/declaration-statement : " + $1;
-    }
+    : labeled-statement
+ 	| attribute-specifier-seq-opt expression-statement
+ 	| attribute-specifier-seq-opt compound-statement
+ 	| attribute-specifier-seq-opt selection-statement
+ 	| attribute-specifier-seq-opt iteration-statement
+ 	| attribute-specifier-seq-opt jump-statement
+ 	| declaration-statement
  	| attribute-specifier-seq-opt try-block
     ;
 /* stmt.label */
@@ -931,27 +905,39 @@ labeled-statement
  	;
 /* stmt.expr */
 expression-statement
-    : expression-opt SEMI
+    : SEMI
+    | expression SEMI
     ;
 expression-opt
     : %empty
     | expression
     ;
-/* stmt.block */
 compound-statement
     : LBRACE RBRACE
-    | LBRACE statement-seq RBRACE {
-        console.log("compound-statement" + $1 + " " + $2 + " " + $3);
-    }
+    | LBRACE statement-seq RBRACE
     ;
 statement-seq
-    : statement {
-        $$ += $1;
-    }
-    | statement-seq statement {
-        $$ += $2;
-    }
+    : statement 
+    | statement statement-seq
     ;
+/* stmt.block 
+compound-statement
+    : LBRACE RBRACE
+    | LBRACE statement-seq RBRACE
+    ;
+compound-statement
+	: LBRACE RBRACE
+	| LBRACE decl-stat-both-seq RBRACE
+	;
+decl-stat-both-seq
+    : decl-stat-both
+    | decl-stat-both decl-stat-both-seq
+    ;
+decl-stat-both
+    : declaration
+    | statement
+    ;
+*/
 /* stmt.select */
 selection-statement
     : IF LPAREN condition RPAREN statement
@@ -976,7 +962,7 @@ condition-opt
     ;
 for-init-statement
     : expression-statement
-    | simple-declaration
+    | decl-specifier-seq init-declarator-list SEMI
     ;
 for-range-declaration
     : attribute-specifier-seq-opt type-specifier-seq declarator
@@ -989,19 +975,13 @@ jump-statement
     : BREAK SEMI
  	| CONTINUE SEMI
  	| RETURN SEMI
-    | RETURN expression SEMI {
-        console.log("jump-statement RETURN");
-    }
-    | RETURN braced-init-list SEMI {
-        console.log("jump-statement RETURN");
-    }
+    | RETURN expression SEMI
+    | RETURN braced-init-list SEMI
  	| GOTO identifier SEMI
     ;
 /* stmt.dcl */
 declaration-statement
-    : block-declaration {
-        console.log("declaration-statement " + $1);
-    }
+    : block-declaration
     ;
     
     
