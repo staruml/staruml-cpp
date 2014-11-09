@@ -61,9 +61,9 @@ TEMPLATE-opt
     : %empty
     | TEMPLATE
     ;
-ELIPSSIS-opt
+ELLIPSIS-opt
     : %empty
-    | ELIPSSIS
+    | ELLIPSIS
     ;
 MUTABLE-opt
     : %empty
@@ -129,9 +129,7 @@ lambda-declarator-opt
     | lambda-declarator
     ;
 lambda-introducer
-    : LBRACK lambda-capture-opt RBRACK {
-        console.log("LAMBDA_INTRODURE " + $1 + " " + $2 + " " +$3);
-    }
+    : LBRACK lambda-capture-opt RBRACK
     ;
 lambda-capture-opt
     : %empty
@@ -153,8 +151,8 @@ capture-default
     }
     ;
 capture-list
-    : capture ELIPSSIS-opt
-    | capture-list COMMA capture ELIPSSIS-opt{
+    : capture ELLIPSIS-opt
+    | capture-list COMMA capture ELLIPSIS-opt{
         $$ += $1 + " " + $3 ;
     }
     ;
@@ -238,7 +236,7 @@ unary-expression
  	| unary-operator cast-expression
  	| SIZEOF unary-expression
  	| SIZEOF LPAREN type-id RPAREN
- 	| SIZEOF ELIPSSIS LPAREN identifier RPAREN
+ 	| SIZEOF ELLIPSIS LPAREN identifier RPAREN
  	| ALIGNOF LPAREN type-id RPAREN
  	| noexcept-expression
  	| new-expression
@@ -391,9 +389,7 @@ assignment-operator
     ;
 /* expr.comma */
 expression
-    : assignment-expression {
-        console.log("assignment-expression");
-    }
+    : assignment-expression
  	| expression COMMA assignment-expression
     ;
 /* expr.const */
@@ -417,7 +413,7 @@ declaration
         console.log("block");
     }
     | function-definition {
-        console.log("function");
+        console.log("> function");
     }
  	| template-declaration {
         console.log("template");
@@ -443,7 +439,7 @@ declaration
     ;
 block-declaration
     : simple-declaration {
-        console.log("simple-declaration");
+        console.log("simple-declaration " + $1);
     }
  	| asm-definition
  	| namespace-alias-definition
@@ -458,7 +454,6 @@ alias-declaration
     ;
 simple-declaration
     : attribute-specifier-seq-opt decl-specifier-seq-opt init-declarator-list-opt SEMI
-//    : attribute-specifier-seq-opt decl-specifier-seq init-declarator-list SEMI
     ;
     
 decl-specifier-seq-opt
@@ -470,12 +465,10 @@ init-declarator-list-opt
     | init-declarator-list
     ;
 static_assert-declaration
-    : STATIC_ASSERT LPAREN constant-expression COMMA string-literal RPAREN SEMI
+    : STATIC_ASSERT LPAREN constant-expression COMMA StringLiteral RPAREN SEMI
     ;
 empty-declaration
-    : SEMI {
-        console.log("empty -> SEMI");
-    }
+    : SEMI
     ;
 attribute-declaration
     : attribute-specifier-seq SEMI
@@ -664,12 +657,12 @@ using-directive
     ;
 /* dcl.asm */
 asm-definition
-    : ASM LPAREN string-literal RPAREN SEMI
+    : ASM LPAREN StringLiteral RPAREN SEMI
     ;
 /* dcl.link */
 linkage-specification
-    : EXTERN string-literal LBRACE declaration-seq-opt RBRACE
- 	| EXTERN string-literal declaration
+    : EXTERN StringLiteral LBRACE declaration-seq-opt RBRACE
+ 	| EXTERN StringLiteral declaration
     ;
 /* dcl.attr.grammar */
 attribute-specifier-seq
@@ -681,14 +674,14 @@ attribute-specifier
  	| alignment-specifier
     ;
 alignment-specifier
-    : ALIGNAS LPAREN type-id ELIPSSIS-opt RPAREN
- 	| ALIGNAS LPAREN alignment-expression ELIPSSIS-opt RPAREN
+    : ALIGNAS LPAREN type-id ELLIPSIS-opt RPAREN
+ 	| ALIGNAS LPAREN alignment-expression ELLIPSIS-opt RPAREN
     ;
 attribute-list
     : attribute-opt
  	| attribute-list COMMA attribute-opt
- 	| attribute ELIPSSIS
- 	| attribute-list COMMA attribute ELIPSSIS
+ 	| attribute ELLIPSIS
+ 	| attribute-list COMMA attribute ELLIPSIS
     ;
 attribute
     : attribute-token attribute-argument-clause-opt
@@ -737,18 +730,29 @@ ptr-declarator
     : noptr-declarator
  	| ptr-operator ptr-declarator
     ;
+    
 noptr-declarator
-    : declarator-id attribute-specifier-seq-opt
- 	| noptr-declarator parameters-and-qualifiers
- 	| noptr-declarator LBRACK constant-expression-opt RBRACK attribute-specifier-seq-opt
+    : declarator-id
+    | declarator-id attribute-specifier-seq
+ 	| noptr-declarator parameters-and-qualifiers                    // need to check for future
+    | noptr-declarator brack-part-seq attribute-specifier-seq
+    | noptr-declarator brack-part-seq
+    | declarator-id brack-part-seq attribute-specifier-seq          // for parsing "char *argv[][][][][]"
+    | declarator-id brack-part-seq                                  // for parsing "char *argv[][][][][]"
  	| LPAREN ptr-declarator RPAREN
     ;
-constant-expression-opt
-    : %empty
-    | constant-expression
+brack-part-seq
+    : brack-part
+    | brack-part-seq brack-part
+    ;
+brack-part
+    : LBRACK RBRACK
+    | LBRACK constant-expression RBRACK
     ;
 parameters-and-qualifiers
-    : LPAREN parameter-declaration-clause RPAREN attribute-specifier-seq-opt cv-qualifier-seq-opt ref-qualifier-opt exception-specification-opt
+    : LPAREN parameter-declaration-clause RPAREN attribute-specifier-seq-opt cv-qualifier-seq-opt ref-qualifier-opt exception-specification-opt {
+        console.log("parameters-and-qualifiers " + $2);
+    }
     ;
 cv-qualifier-seq-opt
     : %empty
@@ -785,7 +789,7 @@ ref-qualifier
     ;
 declarator-id
     : id-expression
-    | ELIPSSIS id-expression
+    | ELLIPSIS id-expression
  	| DBL_COLON-opt nested-name-specifier-opt class-name
     ;
 /* dcl.name */
@@ -795,7 +799,7 @@ type-id
 abstract-declarator
     : ptr-abstract-declarator
     | noptr-abstract-declarator-opt parameters-and-qualifiers trailing-return-type
- 	| ELIPSSIS
+ 	| ELLIPSIS
     ;
 noptr-abstract-declarator-opt
     : %empty
@@ -816,20 +820,11 @@ noptr-abstract-declarator
     ;
     
 /* dcl.fct */
-parameter-declaration-clause // <- action like -opt a parameter-declaration-clause b | a b 두개 모두 명시 할것 
+parameter-declaration-clause // <- action like -opt / a parameter-declaration-clause b | a b 두개 모두 명시 할것 
     : parameter-declaration-list
-    | ELIPSSIS
-    | parameter-declaration-list ELIPSSIS
- 	| parameter-declaration-list COMMA ELIPSSIS
-    ;
-parameter-declaration-list-opt
-    : %empty
-    | parameter-declaration-list
-    ;
-    
-ptr-abstract-declarator-opt
-    : %empty
-    | ptr-abstract-declarator
+    | ELLIPSIS
+    | parameter-declaration-list ELLIPSIS
+ 	| parameter-declaration-list COMMA ELLIPSIS
     ;
 parameter-declaration-list
     : parameter-declaration
@@ -844,13 +839,20 @@ parameter-declaration
  	
 /* dcl.fct.def.general */
 function-definition
-    : attribute-specifier-seq-opt decl-specifier-seq-opt declarator function-body
+    : attribute-specifier-seq-opt decl-specifier-seq-opt declarator function-body 
  	| attribute-specifier-seq-opt decl-specifier-seq-opt declarator ASSIGN DEFAULT SEMI
  	| attribute-specifier-seq-opt decl-specifier-seq-opt declarator ASSIGN DELETE SEMI
     ;
 function-body
-    : ctor-initializer-opt compound-statement
- 	| function-try-block
+    : compound-statement {
+        console.log("function body");
+    }
+    | ctor-initializer compound-statement {
+        console.log("function body");
+    }
+ 	| function-try-block {
+        console.log("function body");
+    }
     ;
 ctor-initializer-opt
     : %empty
@@ -873,8 +875,8 @@ initializer-clause
  	| braced-init-list
     ;
 initializer-list	 
- 	: initializer-clause ELIPSSIS-opt
- 	| initializer-list COMMA initializer-clause ELIPSSIS-opt
+ 	: initializer-clause ELLIPSIS-opt
+ 	| initializer-list COMMA initializer-clause ELLIPSIS-opt
     ;
 braced-init-list
     : LBRACE initializer-list COMMA-opt RBRACE
@@ -895,15 +897,30 @@ braced-init-list
 /* stmt.stmt */
 
 statement
-    : labeled-statement
- 	| attribute-specifier-seq-opt expression-statement {
-        console.log("attribute-specifier-seq-opt expression-statement");
+    : labeled-statement {
+        $$ += "/labeled-statement : " + $1;
     }
- 	| attribute-specifier-seq-opt compound-statement
- 	| attribute-specifier-seq-opt selection-statement
- 	| attribute-specifier-seq-opt iteration-statement
- 	| attribute-specifier-seq-opt jump-statement
- 	| declaration-statement
+ 	| attribute-specifier-seq-opt expression-statement {
+        $$ += "/expression-statement : " + $2;
+    }
+ 	| attribute-specifier-seq compound-statement {
+        $$ += "/compound-statement : " + $2;
+    }
+ 	| compound-statement {
+        $$ += "/compound-statement : " + $1;
+    }
+ 	| attribute-specifier-seq-opt selection-statement {
+        $$ += "/selection-statement : " + $2;
+    }
+ 	| attribute-specifier-seq-opt iteration-statement {
+        $$ += "/iteration-statement : " + $2;
+    }
+ 	| attribute-specifier-seq-opt jump-statement {
+        $$ += "/jump-statement : " + $2;
+    }
+ 	| declaration-statement {
+        $$ += "/declaration-statement : " + $1;
+    }
  	| attribute-specifier-seq-opt try-block
     ;
 /* stmt.label */
@@ -914,9 +931,7 @@ labeled-statement
  	;
 /* stmt.expr */
 expression-statement
-    : expression-opt SEMI {
-        console.log("expression-opt SEMI");
-    }
+    : expression-opt SEMI
     ;
 expression-opt
     : %empty
@@ -925,11 +940,17 @@ expression-opt
 /* stmt.block */
 compound-statement
     : LBRACE RBRACE
-    | LBRACE statement-seq RBRACE
+    | LBRACE statement-seq RBRACE {
+        console.log("compound-statement" + $1 + " " + $2 + " " + $3);
+    }
     ;
 statement-seq
-    : statement
-    | statement-seq statement
+    : statement {
+        $$ += $1;
+    }
+    | statement-seq statement {
+        $$ += $2;
+    }
     ;
 /* stmt.select */
 selection-statement
@@ -967,13 +988,20 @@ for-range-initializer
 jump-statement
     : BREAK SEMI
  	| CONTINUE SEMI
- 	| RETURN expression-opt SEMI
- 	| RETURN braced-init-list-opt SEMI
+ 	| RETURN SEMI
+    | RETURN expression SEMI {
+        console.log("jump-statement RETURN");
+    }
+    | RETURN braced-init-list SEMI {
+        console.log("jump-statement RETURN");
+    }
  	| GOTO identifier SEMI
     ;
 /* stmt.dcl */
 declaration-statement
-    : block-declaration
+    : block-declaration {
+        console.log("declaration-statement " + $1);
+    }
     ;
     
     
@@ -1059,7 +1087,7 @@ literal
 user-defined-literal 
     : user-defined-integer-literal
     | user-defined-floating-literal
-    | user-defined-string-literal
+    | user-defined-StringLiteral
  	| user-defined-character-literal
     ;
 user-defined-integer-literal 
@@ -1068,7 +1096,7 @@ user-defined-integer-literal
 user-defined-floating-literal 
     : FloatingLiteral ud-suffix
     ;
-user-defined-string-literal 
+user-defined-StringLiteral 
     : StringLiteral ud-suffix
     ;
 user-defined-character-literal 
