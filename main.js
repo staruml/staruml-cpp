@@ -1,8 +1,33 @@
+/*
+ * Copyright (c) 2014 MKLab. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ *
+ */
+ 
+/*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 50, regexp: true */
+
 define(function (require, exports, module) {
 	"use strict";
 
 	var AppInit             = staruml.getModule("utils/AppInit"),
-		Repository          = staruml.getModule("engine/Repository"),
+		Repository          = staruml.getModule("core/Repository"),
 		Engine              = staruml.getModule("engine/Engine"),
 		Commands            = staruml.getModule("command/Commands"),
 		CommandManager      = staruml.getModule("command/CommandManager"),
@@ -87,7 +112,7 @@ define(function (require, exports, module) {
 		CommandManager.execute(Commands.FILE_PREFERENCES, CppPreferences.getId());
 	}
 
-	CommandManager.register("Cpp",             CMD_CPP,           CommandManager.doNothing);
+	CommandManager.register("C++",             CMD_CPP,           CommandManager.doNothing);
 	CommandManager.register("Generate Code...", CMD_CPP_GENERATE,  _handleGenerate);
 	CommandManager.register("Reverse Code...",  CMD_CPP_REVERSE,   function(){console.log("Reverse code...");});
 	CommandManager.register("Configure...",     CMD_CPP_CONFIGURE, _handleConfigure);

@@ -34,7 +34,7 @@ define(function (require, exports, module) {
     var _CPP_PROTECTED_MOD = "protected";
     var _CPP_PRIVATE_MOD = "private";
     
-	var Repository = staruml.getModule("engine/Repository"),
+	var Repository = staruml.getModule("core/Repository"),
 		Engine     = staruml.getModule("engine/Engine"),
 		FileSystem = staruml.getModule("filesystem/FileSystem"),
 		FileUtils  = staruml.getModule("file/FileUtils"),
