@@ -4,7 +4,7 @@
 
 /* Documentation Comments */
 SINGLE_LINE_DOC_COMMENT         '///'{Input_characters}?   
-DELIMITED_DOC_COMMENT           '/**'{Delimited_comment_text}?{Asterisks}'/'  
+ 
 
 /* Line Terminators */
 NEW_LINE                        [\u000D]|[\u000A]|([\u000D][\u000A])|[\u0085]|[\u2029]
@@ -18,16 +18,10 @@ Input_characters                {Input_character}+
 Input_character                 [^\u000D\u000A\u0085\u2028\u2029\n]
 NEW_LINE_CHARACTER              [\u000D]|[\u000A]|[\u0085]|[\u2028]|[\u2029]|'\n' 
 
-
-delimited-comment               '/*' ([*]*)? {delimited-comment-characters}?  ([*]*)? '*/'
-delimited-comment-characters    {delimited-comment-character}*
-
-delimited-comment-character     {not-asterisk}|('*' {not-slash} )
-not-asterisk                    [^*]
-not-slash                       [^/]
-
  
-
+ 
+  
+ 
 
 /* Custome Lexer rules */
 QUOTE                           '\''
@@ -36,6 +30,7 @@ BACK_SLASH                      '\\'
 DOUBLE_BACK_SLASH               '\\\\'
 SHARP                           '#'
 DOT                             '.'  
+STAR                            '*'
 
 TRUE                            'true'
 FALSE                           'false'
@@ -101,7 +96,7 @@ Formatting_character            {UNICODE_CLASS_Cf}
 REAL_LITERAL                    {Decimal_digits}{DOT}{Decimal_digits}{Exponent_part}?{Real_type_suffix}?|{DOT}{Decimal_digits}{Exponent_part}?{Real_type_suffix}?|{Decimal_digits}{Exponent_part}{Real_type_suffix}?|{Decimal_digits}{Real_type_suffix}
 Exponent_part                   'e'{Sign}?{Decimal_digits}|'E'{Sign}?{Decimal_digits}
 Sign                            '+'|'-'
-Real_type_suffix                'F'|'f'|'D'|'d'|'M'|'m'
+Real_type_suffix                'F'|'f'|'L'|'l'
 
 
 /* Integer Literals */
@@ -109,14 +104,14 @@ INTEGER_LITERAL                 {Hexadecimal_integer_literal}|{Decimal_integer_l
 Decimal_integer_literal         {Decimal_digits}{Integer_type_suffix}?
 Decimal_digits                  {DECIMAL_DIGIT}+
 DECIMAL_DIGIT                   [0-9]
-Integer_type_suffix             'UL'|'Ul'|'uL'|'ul'|'LU'|'Lu'|'lU'|'lu'|'U'|'u'|'L'|'l'
+Integer_type_suffix             'UL'|'Ul'|'uL'|'ul'|'LU'|'Lu'|'LL'|'lU'|'lu'|'ll'|'U'|'u'|'L'|'l'|'i64'
 Hexadecimal_integer_literal     ('0x'{Hex_digits}{Integer_type_suffix}?) | ('0X'{Hex_digits}{Integer_type_suffix}?)
 Hex_digits                      {HEX_DIGIT}+
 HEX_DIGIT                       [0-9a-fA-F] 
 
 
 /* String Literals */
-STRING_LITERAL                              {Regular_string_literal}|{Verbatim_string_literal}
+STRING_LITERAL                              [L]?{Regular_string_literal}|{Verbatim_string_literal}
 Regular_string_literal                      {DOUBLE_QUOTE}{Regular_string_literal_characters}?{DOUBLE_QUOTE}
 Regular_string_literal_characters           {Regular_string_literal_character}+  
 Regular_string_literal_character            {Single_regular_string_literal_character}|{Simple_escape_sequence}|{Hexadecimal_escape_sequence}|{Unicode_escape_sequence}|'\"'|'\\'
@@ -132,7 +127,7 @@ Quote_escape_sequence                       '""'
   
 
 /* Character Literals */
-CHARACTER_LITERAL               {QUOTE}{Character}{QUOTE}
+CHARACTER_LITERAL               [L]?{QUOTE}{Character}{QUOTE}
 Character                       {Single_character}|{Simple_escape_sequence}|{Hexadecimal_escape_sequence}|{Unicode_escape_sequence}
 Single_character                [^']
 Simple_escape_sequence          '\\\''|'\\"'|{DOUBLE_BACK_SLASH}|'\\0'|'\\a'|'\\b'|'\\f'|'\\n'|'\\r'|'\\t'|'\\v'  
@@ -142,22 +137,50 @@ Hexadecimal_escape_sequence     '\\x'{HEX_DIGIT}{4}|'\\x'{HEX_DIGIT}{3}|'\\x'{HE
 /* C.1.10 Pre-processing directives */
 SINGLE_PREPROCESSING            [#] {Input_characters}? 
    
-         
+
+%s                              comment
  
 %%
  
+((("/*")))                      %{ this.begin('comment'); %}
 
+<comment>[^\*]+                 %{
+                                    if (yy.__currentComment) {
+                                        yy.__currentComment += "\n" + yytext.trim();
+                                    } else {
+                                        yy.__currentComment = yytext.trim();
+                                    }
+                                %}
+<comment>[\"]                   /* skip */                  
+<comment>[=]                    /* skip */
+<comment>[\*][=\"']*            %{
+                                    var currentChar = yytext;                                    
+                                    // console.log("currentChar" + currentChar);
+                                    if(currentChar === '*') {
+                                        var nxtChar = this._input[0]; // peek into next char without altering lexer's position
+                                        //console.log("* match :"+yytext)
+                                        //console.log("* match, nxt char:"+nxtChar)
+                                        if(nxtChar === '/')
+                                        {
+                                            //console.log("inside popBlock"+nxtChar);
+                                            nxtChar = this.input();
+                                            if(nxtChar.length > 1)
+                                            this.unput(2,nxtChar.length);
+                                            //console.log("popped state");
+                                            //console.log(this.showPosition());
+                                            this.popState();
+                                        }
+                                    }
+                                %}
 
 {WHITESPACE}                    /* skip */
 {NEW_LINE_CHARACTER}            /* skip */
         
 {SINGLE_LINE_COMMENT}           /* skip */ 
 
-{SINGLE_LINE_DOC_COMMENT}       /* skip */
-{DELIMITED_DOC_COMMENT}         /* skip */
+{SINGLE_LINE_DOC_COMMENT}       /* skip */ 
 {NEW_LINE}                      /* skip */
-
-{delimited-comment}             /* skip */
+ 
 
 {SINGLE_PREPROCESSING}          /* skip */
 
@@ -262,6 +285,23 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 
 "where"                         return 'WHERE';
 
+"delete"                        return 'DELETE';
+
+"friend"                        return 'FRIEND';
+"typedef"                       return 'TYPEDEF';
+
+"auto"                          return 'AUTO';
+"register"                      return 'REGISTER';
+
+"inline"                        return 'INLINE';
+
+"signed"                        return 'SIGNED';
+"unsigned"                      return 'UNSIGNED';
+
+"union"                         return 'UNION';
+
+"asm"                           return 'ASM';
+
 {Unicode_escape_sequence}       return 'Unicode_escape_sequence';
  
 {REAL_LITERAL}                  return 'REAL_LITERAL';
@@ -281,7 +321,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 ";"                             return 'SEMICOLON';
 "+"                             return 'PLUS';
 "-"                             return 'MINUS';
-"*"                             return 'STAR';
+{STAR}                          return 'STAR';
 "/"                             return 'DIV';
 "%"                             return 'PERCENT';
 "&"                             return 'AMP';

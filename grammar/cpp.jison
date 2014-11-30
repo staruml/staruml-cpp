@@ -15,6 +15,8 @@
 
 %token YIELD  ASYNC  AWAIT  WHERE
 
+%token DELETE  FRIEND  TYPEDEF  AUTO   REGISTER   INLINE    SIGNED    UNSIGNED    UNION    ASM
+
 %token REAL_LITERAL
 %token INTEGER_LITERAL   
 %token STRING_LITERAL
@@ -217,6 +219,7 @@ non-array-type
     |   OBJECT
     |   STRING  
     |   VOID 
+    |   AUTO
     ;
     
 array-type
@@ -504,6 +507,10 @@ parenthesized-expression
 
 double-colon-access
     :   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  member-access
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
+    |   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  invocation-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
@@ -1180,6 +1187,7 @@ statement
 embedded-statement
     :   block
     |   empty-statement
+    |   statement-expression block
     |   statement-expression SEMICOLON
     |   selection-statement
     |   iteration-statement
@@ -1191,8 +1199,11 @@ embedded-statement
     |   using-statement
     |   unsafe-statement
     |   fixed-statement 
+    |   method-declaration
+    |   class-declaration 
     ;
- 
+
+  
 
 fixed-statement
     :   modifiers   FIXED   OPEN_PARENS   type   local-variable-declarators   CLOSE_PARENS   embedded-statement
@@ -1214,7 +1225,7 @@ statement-list
     ;
 
 empty-statement
-    :   SEMICOLON
+    :   SEMICOLON 
     ;
 
 labeled-statement
@@ -1225,6 +1236,10 @@ labeled-statement
 declaration-statement
     :   local-variable-declaration   SEMICOLON
     |   local-constant-declaration   SEMICOLON
+    |   local-variable-declaration   block
+    |   local-constant-declaration   block
+    |   local-variable-declaration 
+    |   local-constant-declaration 
     ;
     
 local-variable-declaration
@@ -2868,10 +2883,99 @@ struct-member-declaration
 /* C.2.6 Namespaces */
 compilationUnit
     :   %empty      EOF
-    |   namespace-member-declarations    EOF 
+    |   block_or_statement_list       EOF
     ;
 
+block_or_statement_list
+    :   block_or_statement_list     block_or_statement
+    |   block_or_statement
+    ;
+    
+block_or_statement
+    :   statement    
  
+    ;
+
+namespace-declaration
+    :   NAMESPACE   namespace-or-type-name   namespace-body 
+    {
+        $$ = {
+            "node":"namespace",
+            "qualifiedName":$2,
+            "body":$3
+        };
+    }
+    |   NAMESPACE   namespace-or-type-name   namespace-body   SEMICOLON
+    {
+        $$ = {
+            "node":"Package",
+            "qualifiedName":$2,
+            "body":$3
+        };
+    }
+    ;
+ 
+
+namespace-body
+    :   OPEN_BRACE   CLOSE_BRACE
+    |   OPEN_BRACE   using-directives   CLOSE_BRACE
+    {
+        $$ = $2;
+    }
+    |   OPEN_BRACE   namespace-member-declarations   CLOSE_BRACE
+    {
+        $$ = $2;
+        
+    }
+    |   OPEN_BRACE   using-directives   namespace-member-declarations   CLOSE_BRACE
+    {
+        
+        $$ = $2.concat($3);
+    }   
+    ;
+
+using-directives
+    :   using-directive
+    {
+        $$ = [ $1 ];
+    }
+    |   using-directives   using-directive
+    {
+        $1.push($2);
+        $$ = $1;
+    }
+    ;
+
+using-directive
+    :   using-alias-directive
+    {
+        $$ = $1;
+    }
+    |   using-namespace-directive
+    {
+        $$ = $1;
+    }
+    ;
+
+using-alias-directive
+    :   USING   IDENTIFIER_WITH_TEMPLATE   ASSIGN   namespace-or-type-name   SEMICOLON
+    {
+        $$ = {
+            "node" : "using",
+            "qualifiedName" : $4
+        };
+    }
+    ;
+
+using-namespace-directive
+    :   USING   namespace-name   SEMICOLON
+    {
+        $$ = {
+            "node" : "using",
+            "qualifiedName" : $2
+        };
+    }
+    ;
 
 namespace-member-declarations
     :   namespace-member-declaration
@@ -2886,7 +2990,7 @@ namespace-member-declarations
     ;
     
 namespace-member-declaration
-    :   statement
+    :   namespace-declaration
     {
         $$ = $1;
     }
@@ -2955,463 +3059,61 @@ modifiers
     ;
 
 /* C.2.7 Classes */
+
+class-key
+    :   CLASS
+    |   STRUCT
+    |   UNION
+    ; 
+    
 class-declaration 
-    :   CLASS   IDENTIFIER_WITH_TEMPLATE    where-base     class-body
-    { 
-        $$ = {
-            "node": "class", 
-            "body": $4
-        };
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   attributes   CLASS   IDENTIFIER_WITH_TEMPLATE   where-base    class-body 
-    {
-        $$ = {
-            "node": "class", 
-            "body": $5
-        };
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE   where-base     class-body
-    {
-        $$ = {
-            "node": "class",
-            "modifiers": $1, 
-            "body": $5  
-        };
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base   where-base    class-body  
-    {
-        isAnnotationType = false;
-        for(i=0;i<$3.length;i++){
-            if($3[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",  
-                "base": $3,
-                "body": $5
-            };
-        }
-        else{
-            $$ = {
-                "node": "class",  
-                "base": $3,
-                "body": $5  
-            };
-        }
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-        
-    }
-    |   CLASS   IDENTIFIER_WITH_TEMPLATE   where-base    class-body   SEMICOLON
-    {
-        $$ = {
-            "node": "class",  
-            "body": $4
-        };
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   attributes   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE  where-base     class-body
-    {
-        $$ = {
-            "node": "class", 
-            "modifiers": $2, 
-            "body": $6
-        };
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base     class-body
-    {
-        isAnnotationType = false;
-        for(i=0;i<$4.length;i++){
-            if($4[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",   
-                "base": $4,
-                "body": $6 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",   
-                "base": $4,
-                "body": $6
-            };
-        }
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   CLASS   IDENTIFIER_WITH_TEMPLATE  where-base     class-body   SEMICOLON
-    {
-        $$ = {
-            "node": "class", 
-            "body": $5
-        };
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base     class-body
-    {
-        isAnnotationType = false;
-        for(i=0;i<$4.length;i++){
-            if($4[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",
-                "modifiers": $1, 
-                "base": $4,
-                "body": $6 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",
-                "modifiers": $1, 
-                "base": $4,
-                "body": $6
-            };
-        } 
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE  where-base     class-body   SEMICOLON
-    {
-        $$ = {
-            "node": "class",
-            "modifiers": $1, 
-            "body": $5
-        };
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base     class-body   SEMICOLON
-    {
-        isAnnotationType = false;
-        for(i=0;i<$3.length;i++){
-            if($3[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType", 
-                "base": $3,
-                "body": $5 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class", 
-                "base": $3,
-                "body": $5
-            };
-        }
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base     class-body   SEMICOLON
-    {
-        isAnnotationType = false;
-        for(i=0;i<$4.length;i++){
-            if($4[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",
-                "modifiers": $1, 
-                "base": $4,
-                "body": $6 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",
-                "modifiers": $1, 
-                "base": $4,
-                "body": $6
-            };
-        } 
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        } 
-    }
-    |   attributes   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base     class-body   SEMICOLON
-    {
-        isAnnotationType = false;
-        for(i=0;i<$4.length;i++){
-            if($4[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",  
-                "base": $4,
-                "body": $6 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",  
-                "base": $4,
-                "body": $6
-            };
-        }
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE  where-base     class-body   SEMICOLON
-    {
-        $$ = {
-            "node": "class", 
-            "modifiers": $2, 
-            "body": $6
-        };
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base   class-body  
-    {
-        isAnnotationType = false;
-        for(i=0;i<$5.length;i++){
-            if($5[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",
-                "modifiers": $2, 
-                "base": $5,
-                "body": $7 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",
-                "modifiers": $2, 
-                "base": $5,
-                "body": $7
-            };
-        }
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   modifiers   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base  where-base   class-body   SEMICOLON
-    {
-        isAnnotationType = false;
-        for(i=0;i<$5.length;i++){
-            if($5[i] == "System.Attribute"){
-                isAnnotationType = true;
-            }
-        }
-        
-        if (isAnnotationType){
-            $$ = {
-                "node": "annotationType",
-                "modifiers": $2, 
-                "base": $5,
-                "body": $7 
-            };
-        }
-        else {
-            $$ = {
-                "node": "class",
-                "modifiers": $2, 
-                "base": $5,
-                "body": $7
-            };
-        }
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
+    :   CLASS   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-body  
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base      class-body   
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-body   SEMICOLON  
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE   class-base      class-body   SEMICOLON   
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE    IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE    IDENTIFIER_WITH_TEMPLATE   class-body  
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE    IDENTIFIER_WITH_TEMPLATE   class-base      class-body   
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE    IDENTIFIER_WITH_TEMPLATE   class-body   SEMICOLON  
+    |   CLASS   IDENTIFIER_WITH_TEMPLATE    IDENTIFIER_WITH_TEMPLATE   class-base      class-body   SEMICOLON  
     ;
     
- 
-
-where-base
-    :   where-units    COMMA    NEW   OPEN_PARENS   CLOSE_PARENS
-    |   where-units
-    ;
-
-
-where-units
-    :   where-units  where-unit
-    |   where-unit
-    ;
-
-where-names
-    :   where-names   COMMA    where-name
-    |   where-name
-    ;
-
-where-name
-    :   type-name
-    |   type
-    |   CLASS
-    |   STRUCT
-    |   NEW   OPEN_PARENS   CLOSE_PARENS
-    ;
- 
-where-unit
-    :   WHERE   type-name   COLON   where-names   
-    |   %empty
-    ;
-
+    
 class-base
-    :   COLON   type-with-interr
-    {
-        $$ = [ $2 ];
-    }
-    |   COLON   interface-type-list
-    {
-        $$ = $2;
-    }
-    |   COLON   type-with-interr   COMMA   interface-type-list
-    {
-        $4.push($2);
-        $$ = $4;
-    }
+    :   COLON   base-list
     ;
 
-interface-type-list
+base-list
+    :   base-list   COMMA    base-specifier
+    |   base-specifier
+    ;    
+
+base-specifier
     :   type-with-interr
-    {
-        $$ = [ $1 ];
-    }
-    |   interface-type-list   COMMA   type-with-interr
-    {
-        $1.push($2);
-        $$ = $1;
-    }
+    |   VIRTUAL     access-specifier    type-with-interr
+    |   VIRTUAL     type-with-interr
+    |   access-specifier    VIRTUAL     type-with-interr
+    |   access-specifier    type-with-interr
     ;
+    
+access-specifier
+    :   PRIVATE
+    |   PROTECTED
+    |   PUBLIC
+    ;
+     
 
 class-body
     :   OPEN_BRACE   CLOSE_BRACE
-    |   OPEN_BRACE   class-member-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "classMembers", 
-            "members": $2
-        };
-    }
+    |   OPEN_BRACE   member-list   CLOSE_BRACE 
+    ;
+
+member-list
+    :   class-member-declaration    member-list
+    |   class-member-declaration
+    |   access-specifier    COLON   member-list
+    |   access-specifier    COLON
     ;
 
 class-member-declarations
@@ -3431,7 +3133,7 @@ class-member-declaration
     {
         $$ = $1;
     }
-    |   method-declaration
+    |   class-method-declaration
     {
         $$ = $1;
     }
@@ -3475,231 +3177,76 @@ class-member-declaration
 
 
 constant-declaration
-    :   CONST   type-with-interr   constant-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "constant",
-            "type": $2,
-            "names": $3
-        };
-    }
-    |   attributes   CONST   type-with-interr   constant-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "constant",
-            "type": $3,
-            "names": $4
-        };
-    }
-    |   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "constant",
-            "modifiers": $1,
-            "type": $2,
-            "names": $3
-        };
-    }
-    |   attributes   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "constant",
-            "modifiers": $2,
-            "type": $4,
-            "names": $5
-        };
-    }
+    :   CONST   type-with-interr   constant-declarators   SEMICOLON 
+    |   attributes   CONST   type-with-interr   constant-declarators   SEMICOLON 
+    |   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON 
+    |   attributes   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON 
     ;
  
 constant-declarators
-    :   constant-declarator
-    {
-        $$ = [ $1 ];
-    }
-    |   constant-declarators   COMMA   constant-declarator
-    {
-        $1.push($3);
-        $$ = $1;
-    }
+    :   constant-declarator 
+    |   constant-declarators   COMMA   constant-declarator 
     ;
 
 constant-declarator
-    :   IDENTIFIER_WITH_TEMPLATE   ASSIGN   constant-expression
-    {
-        $$ = {
-            "name": $1,
-            "value": $3
-        };
-    }
+    :   IDENTIFIER_WITH_TEMPLATE   ASSIGN   constant-expression 
     ;
 
 field-declaration
-    :   type-with-interr    member-name   SEMICOLON
-    {
-        $$ = {
-            "node": "field",
-            "type": $1, 
-            "name": $2
-        };
-    }
-    |   attributes   type-with-interr    member-name   SEMICOLON
-    {
-        $$ = {
-            "node": "field",
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   modifiers   type-with-interr    member-name   SEMICOLON
-    {
-        $$ = {
-            "node": "field",
-            "modifiers": $1,
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   attributes    modifiers   type-with-interr    member-name   SEMICOLON
-    {
-        $$ = {
-            "node": "field",
-            "modifiers": $2,
-            "type": $3,
-            "name": $4
-        };
-    }
+    :   type-with-interr    member-name   SEMICOLON 
+    |   attributes   type-with-interr    member-name   SEMICOLON 
+    |   modifiers   type-with-interr    member-name   SEMICOLON 
+    |   attributes    modifiers   type-with-interr    member-name   SEMICOLON 
     ;
       
     
 variable-declarators
-    :   variable-declarators   COMMA   variable-declarator
-    {
-        $1.push($3);
-        $$ = $1;
-    }
-    |   variable-declarator
-    {
-        $$ = [ $1 ];
-    }
+    :   variable-declarators   COMMA   variable-declarator 
+    |   variable-declarator 
     ;
 
 variable-declarator
-    :   type-name      ASSIGN   variable-initializer
-    {
-        $$ = {
-            "node": "variable",
-            "name": $1,
-            "initialize": $3
-        };
-    }
-    |   type-name   
-    {
-        $$ = {
-            "node": "variable",
-            "name": $1 
-        };
-    }
+    :   type-name      ASSIGN   variable-initializer 
+    |   type-name    
     ;
 
 variable-initializer
-    :   expression
-    {
-        $$ = $1;
-    }
-    |   array-initializer
-    {
-        $$ = $1;
-    }
+    :   expression 
+    |   array-initializer 
     ;
 
 
 method-declaration
-    :   method-header   block
-    {
-        $$ = $1;
-    }
+    :   method-header   block 
+    ;
+    
+class-method-declaration
+    :   method-header   block   SEMICOLON 
+    |   method-header   block
     |   method-header   SEMICOLON
-    {
-        $$ = $1;
-    }
+    |   method-header   
     ;
     
 
 method-header  
-    :   type-with-interr   member-name   OPEN_PARENS   CLOSE_PARENS      where-base
-    {
-        $$ = {
-            "node": "method",
-            "type": $1, 
-            "name": $2
-        };
-    }
-    |   attributes   type-with-interr   member-name   OPEN_PARENS   CLOSE_PARENS      where-base
-    {
-        $$ = {
-            "node": "method",
-            "type": $1, 
-            "name": $2
-        };
-    }
-    |   modifiers   type-with-interr   member-name   OPEN_PARENS   CLOSE_PARENS       where-base
-    {
-        $$ = {
-            "node": "method",
-            "modifiers": $1,
-            "type": $2, 
-            "name": $3
-        };
-    }
-    |   type-with-interr   member-name   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS       where-base
-    {
-        $$ = {
-            "node": "method",
-            "type": $1, 
-            "name": $2,
-            "parameter": $4
-        };
-    }
-    |   modifiers   type-with-interr   member-name   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS       where-base
-    {
-        $$ = {
-            "node": "method",
-            "modifiers": $1,
-            "type": $2, 
-            "name": $3,
-            "parameter": $5
-        };
-    }
-    |   attributes   type-with-interr   member-name   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      where-base
-    {
-        $$ = {
-            "node": "method",
-            "type": $2, 
-            "name": $3,
-            "parameter": $5
-        };
-    }
-    |   attributes   modifiers   type-with-interr   member-name   OPEN_PARENS   CLOSE_PARENS       where-base
-    {
-        $$ = {
-            "node": "method",
-            "modifiers": $2,
-            "type": $3, 
-            "name": $4 
-        };
-    }
-    |   attributes   modifiers   type-with-interr   member-name   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    where-base
-    {
-        $$ = {
-            "node": "method",
-            "modifiers": $2,
-            "type": $3, 
-            "name": $4,
-            "parameter": $6
-        };
-    }
+    :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
+    |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
+    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
+    |   attributes   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS      
+    |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS 
+    |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
+    |   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
+    |   attributes   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
+    |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
+    |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
     ;
      
+     
+member-name-with-double-colon
+    :   local-variable  DOUBLE_COLON    TILDE    local-variable
+    |   local-variable  DOUBLE_COLON   local-variable
+    |   local-variable
+    ;
      
 member-name
     :   variable-declarators 
@@ -3715,35 +3262,19 @@ method-body
     ;
 
 formal-parameter-list
-    :   fixed-parameters
-    {
-        $$ = $1;
-    }
-    |   fixed-parameters   COMMA   parameter-array
-    {
-        $1.push($3);
-        $$ = $1;
-    }
-    |   parameter-array
-    {
-        $$ = [ $1 ];
-    }
+    :   fixed-parameters 
+    |   fixed-parameters   COMMA   parameter-array 
+    |   parameter-array 
     ;
 
 fixed-parameters
-    :   fixed-parameter
-    {
-        $$ = [ $1 ];
-    }
-    |   fixed-parameters   COMMA   fixed-parameter
-    {
-        $1.push($3);
-        $$ = $1;
-    }
+    :   fixed-parameters   COMMA   fixed-parameter  
+    |   fixed-parameter
     ;
 
 IDENTIFIER_WITH_KEYWORD
-    :   IDENTIFIER_WITH_TEMPLATE
+    :   TILDE   IDENTIFIER_WITH_KEYWORD  
+    |   IDENTIFIER_WITH_TEMPLATE
     |   ADD
     |   REMOVE
     |   SET
@@ -3762,50 +3293,12 @@ IDENTIFIER_WITH_KEYWORD
     ;
 
 fixed-parameter
-    :   type-with-interr   IDENTIFIER_WITH_KEYWORD      ASSIGN     expression
-    {
-        $$ = {
-            "type": $1,
-            "name": $2
-        };
-    }
-    |   type-with-interr   IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = {
-            "type": $1,
-            "name": $2
-        };
-    }
-    |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = {
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   attributes   type-with-interr   IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = {
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = {
-            "modifier": $1,
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   attributes   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = {
-            "modifier": $2,
-            "type": $3,
-            "name": $4
-        };
-    }
+    :   type-with-interr   IDENTIFIER_WITH_KEYWORD      ASSIGN     expression  
+    |   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD 
+    |   attributes   type-with-interr   IDENTIFIER_WITH_KEYWORD 
+    |   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
+    |   attributes   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
     ;
 
 parameter-modifier
@@ -3814,58 +3307,16 @@ parameter-modifier
     ;
 
 parameter-array
-    :   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE
-    {
-        $$ = {
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   attributes   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE
-    {
-        $$ = {
-            "type": $3,
-            "name": $4
-        };
-    }
+    :   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE 
+    |   attributes   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE 
     ;
 
 
 property-declaration
-    :   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "property",
-            "type": $1, 
-            "name": $2
-        };
-    }
-    |   attributes   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "property",
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "property",
-            "modifiers": $1,
-            "type": $2,
-            "name": $3
-        };
-    }
-    |   attributes   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "property",
-            "modifiers": $2,
-            "type": $3,
-            "name": $4
-        };
-    }
+    :   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   attributes   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   attributes   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
     ;
 
 accessor-declarations
@@ -3892,74 +3343,14 @@ set-accessor-declaration
 
 
 event-declaration
-    :   EVENT   type-with-interr   variable-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "event",
-            "type": $2,
-            "variables": $3            
-        };
-    }
-    |   attributes   EVENT   type-with-interr   variable-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "event",
-            "type": $3,
-            "variables": $4            
-        };
-    }
-    |   modifiers   EVENT   type-with-interr   variable-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "event",
-            "modifiers": $1,
-            "type": $3,
-            "variables": $4            
-        };
-    }
-    |   attributes   modifiers   EVENT   type-with-interr   variable-declarators   SEMICOLON
-    {
-        $$ = {
-            "node": "event",
-            "modifiers": $2,
-            "type": $4,
-            "variables": $5
-        };
-    }
-    |   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "event",
-            "type": $2,
-            "variables": $3 
-        };
-    }
-    |   attributes   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "event",
-            "type": $3,
-            "variables": $4 
-        };
-    }
-    |   modifiers   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "event",
-            "modifiers": $1,
-            "type": $3,
-            "variables": $4
-        };
-    }
-    |   attributes   modifiers   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE
-    {
-        $$ = {
-            "node": "event",
-            "modifiers": $2,
-            "type": $4,
-            "variables": $5
-        };
-    }
+    :   EVENT   type-with-interr   variable-declarators   SEMICOLON 
+    |   attributes   EVENT   type-with-interr   variable-declarators   SEMICOLON 
+    |   modifiers   EVENT   type-with-interr   variable-declarators   SEMICOLON 
+    |   attributes   modifiers   EVENT   type-with-interr   variable-declarators   SEMICOLON 
+    |   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE 
+    |   attributes   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE 
+    |   modifiers   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE 
+    |   attributes   modifiers   EVENT   type-with-interr   member-name   OPEN_BRACE   event-accessor-declarations   CLOSE_BRACE 
     ;
  
 event-accessor-declarations
@@ -3980,104 +3371,38 @@ remove-accessor-declaration
 
 
 indexer-declaration
-    :   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = $1;
-    }
-    |   attributes   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $$ = $1;
-    }
-    |   modifiers   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $2["modifiers"] = $1;
-        $$ = $2;
-    }
-    |   attributes   modifiers   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE
-    {
-        $3["modifiers"] = $2;
-        $$ = $3;
-    }
+    :   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   attributes   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   modifiers   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
+    |   attributes   modifiers   indexer-declarator   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
     ;
 
 indexer-declarator
-    :   type-with-interr   THIS   OPEN_BRACKET   formal-parameter-list   CLOSE_BRACKET
-    {
-        $$ = {
-            "node": "indexer",
-            "type": $1,
-            "name": $2,
-            "parameters": $4
-        };
-    }
-    |   type-with-interr   member-name     OPEN_BRACKET   formal-parameter-list   CLOSE_BRACKET
-    {
-        $$ = {
-            "node": "indexer",
-            "type": $1,
-            "name": $2,
-            "parameters": $4
-        };
-    }
+    :   type-with-interr   THIS   OPEN_BRACKET   formal-parameter-list   CLOSE_BRACKET 
+    |   type-with-interr   member-name     OPEN_BRACKET   formal-parameter-list   CLOSE_BRACKET 
     ;
 
 
 
 operator-declaration
-    :   modifiers   operator-declarator   method-body
-    { 
-        $2["node"]= "operator";
-        $2["modifiers"]= $1;
-        $$= $2;
-        
-    }
-    |   attributes   modifiers   operator-declarator   method-body 
-    {
-        $3["node"]= "operator";
-        $3["modifiers"]= $2;
-        $$= $3;
-    }
+    :   modifiers   operator-declarator   method-body 
+    |   attributes   modifiers   operator-declarator   method-body  
     ;
  
 
 operator-declarator
     :   unary-operator-declarator
-    {
-        $$ = $1;
-    }
-    |   binary-operator-declarator
-    {
-        $$ = $1;
-    }
-    |   conversion-operator-declarator
-    {
-        $$ = $1;
-    }
+    |   binary-operator-declarator 
+    |   conversion-operator-declarator 
     ;
 
 unary-operator-declarator
-    :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $1,
-            "operator": $3,
-            "parameter": [{
-                "type": $5,
-                "name": $6
-            }]
-        };
-    }
+    :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
     ;
 
 overloadable-operator
-    :   overloadable-unary-operator
-    {
-        $$ = $1;
-    }
-    |   overloadable-binary-operator
-    {
-        $$ = $1;
-    }
+    :   overloadable-unary-operator 
+    |   overloadable-binary-operator 
     ;
     
 
@@ -4093,20 +3418,7 @@ overloadable-unary-operator
     ;
     
 binary-operator-declarator
-    :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   COMMA   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $1,
-            "operator": $3,
-            "parameter": [{
-                "type": $5,
-                "name": $6
-            }, {
-                "type": $8,
-                "name": $9
-            }]
-        };
-    }
+    :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   COMMA   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
     ;
 
 overloadable-binary-operator
@@ -4129,105 +3441,25 @@ overloadable-binary-operator
     ;
 
 conversion-operator-declarator
-    :   IMPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $3,
-            "operator": "implicit",
-            "parameter":[{
-                "type": $5,
-                "name": $6
-            }]
-        };
-    }
-    |   IMPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_KEYWORD   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $3,
-            "operator": "implicit",
-            "parameter":[{
-                "type": $5,
-                "name": $6
-            }]
-        };
-    }
-    |   EXPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $3,
-            "operator": "explicit",
-            "parameter":[{
-                "type": $5,
-                "name": $6
-            }]
-        };
-    }
-    |   EXPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_KEYWORD   CLOSE_PARENS
-    {
-        $$ = {
-            "type": $3,
-            "operator": "explicit",
-            "parameter":[{
-                "type": $5,
-                "name": $6
-            }]
-        };
-    }
+    :   IMPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
+    |   IMPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_KEYWORD   CLOSE_PARENS 
+    |   EXPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
+    |   EXPLICIT   OPERATOR   type-with-interr   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_KEYWORD   CLOSE_PARENS 
     ;
 
 
 constructor-declaration
-    :   constructor-declarator   method-body
-    {
-        $$ = $1;
-    }
-    |   attributes   constructor-declarator   method-body
-    {
-        $$ = $2;
-    }
-    |   modifiers   constructor-declarator   method-body
-    {
-        $2["modifiers"] = $1;
-        $$ = $2;
-    }
-    |   attributes   modifiers   constructor-declarator   method-body
-    {
-        $3["modifiers"] = $2;
-        $$ = $3;
-    }
+    :   constructor-declarator   method-body 
+    |   attributes   constructor-declarator   method-body 
+    |   modifiers   constructor-declarator   method-body 
+    |   attributes   modifiers   constructor-declarator   method-body 
     ;
  
 constructor-declarator
-    :   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS
-    {
-        $$ = {
-            "node": "constructor",
-            "name": $1
-        };
-    }   
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
-    {
-        $$ = {
-            "node": "constructor",
-            "name": $1,
-            "parameters": $3
-        };
-    }  
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   constructor-initializer
-    {
-        $$ = {
-            "node": "constructor",
-            "name": $1
-        };
-    }  
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   constructor-initializer
-    {
-        $$ = {
-            "node": "constructor",
-            "name": $1,
-            "parameters": $3
-        };
-    }  
+    :   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS 
+    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS 
+    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   constructor-initializer 
+    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   constructor-initializer 
     ;
 
 constructor-initializer
@@ -4240,88 +3472,16 @@ constructor-initializer
 
 
 static-constructor-declaration
-    :   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   method-body
-    {
-        $$ = {
-            "node": "constructor",
-            "modifiers": $1,
-            "name": $2
-        };
-    }
-    |   attributes   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   method-body
-    {
-        $$ = {
-            "node": "constructor",
-            "modifiers": $2,
-            "name": $3
-        };
-    }
+    :   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   method-body 
+    |   attributes   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   method-body 
     ;
  
 
 destructor-declaration
-    :   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body
-    {
-        $$ = {
-            "node": "destructor", 
-            "name": $1 + "" + $2
-        };
-    }
-    |   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body
-    {
-        $$ = {
-            "node": "destructor", 
-            "name": $2 + "" + $3
-        };
-    }
-    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body
-    {
-        $$ = {
-            "node": "destructor", 
-            "extern": $1,
-            "name": $2 + "" + $3
-        };
-    }
-    |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body
-    {
-        $$ = {
-            "node": "destructor", 
-            "extern": $2,
-            "name": $3 + "" + $4
-        };
-    }
+    :   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
+    |   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
+    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
+    |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
     ;
  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
