@@ -63,7 +63,7 @@ Unicode_escape_sequence         '\\u' {HEX_DIGIT}{4}|'\\U' {HEX_DIGIT}{8}
 
 
 
-Template                        [<][^=\(\);\|\+\-\"\'\{\*\\}:]*[>]+
+Template                        [<][^=\(\);\|\+\-\"\'\{\\}:]*[>]+
 
 /* Identifiers  */
 IDENTIFIER                      ({Available_identifier}|'@'{Identifier_or_keyword}) 
@@ -204,8 +204,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "do"                            return 'DO';
 "double"                        return 'DOUBLE';
 "else"                          return 'ELSE';
-"enum"                          return 'ENUM';
-"event"                         return 'EVENT';
+"enum"                          return 'ENUM'; 
 "explicit"                      return 'EXPLICIT';
 "extern"                        return 'EXTERN';
 {FALSE}                         return 'FALSE';
