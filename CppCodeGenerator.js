@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 MKLab. All rights reserved.
+ * Copyright (c) 2014 Sebastian Schleemilch.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -64,6 +65,17 @@ define(function (require, exports, module) {
 		/** @member {string} */
 		this.basePath = basePath;
         
+		var doc = "";
+		if (ProjectManager.getProject().name && ProjectManager.getProject().name.length > 0) {
+            doc += "\nProject " + ProjectManager.getProject().name;
+        }
+        if (ProjectManager.getProject().author && ProjectManager.getProject().author.length > 0) {
+            doc += "\n@author " + ProjectManager.getProject().author;
+        }
+		if (ProjectManager.getProject().version && ProjectManager.getProject().version.length > 0) {
+            doc += "\n@version " + ProjectManager.getProject().version;
+        }
+		copyrightHeader = this.getDocuments(doc);
 	}
 
 	/**
@@ -243,10 +255,11 @@ define(function (require, exports, module) {
             
             // parsing class 
             var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0));
-            codeWriter.writeLine("/**");
-            codeWriter.writeLine(" * " + elem.name + " body");
-            codeWriter.writeLine(" */");
-            codeWriter.writeLine();
+			var docs = elem.name + " implementation\n\n";
+			if(_.isString(elem.documentation)) {
+				docs += elem.documentation;
+			}
+            codeWriter.writeLine(cppCodeGen.getDocuments(docs));
             writeClassMethod(methodList);
             
             // parsing nested class
@@ -556,6 +569,7 @@ define(function (require, exports, module) {
      */
     CppCodeGenerator.prototype.getMethod = function (elem, isCppBody) {
         if (elem.name.length > 0) {
+			var docs = elem.documentation;
             var i;
             var methodStr = "";
             var isVirtaul = false;
@@ -576,6 +590,7 @@ define(function (require, exports, module) {
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
                 inputParamStrings.push(inputParam.type + " " + inputParam.name);
+				docs += "\n@param " + inputParam.name;
             }
             
             methodStr += ((returnTypeParam.length > 0) ? returnTypeParam[0].type : "void") + " ";
@@ -615,6 +630,7 @@ define(function (require, exports, module) {
 					} else {
                         methodStr += indentLine + "return null;";
 					}
+					docs += "\n@return " + returnType;
 				}
                 methodStr += "\n}";
             } else {
@@ -630,7 +646,7 @@ define(function (require, exports, module) {
             }
             
             
-            return methodStr;
+            return "\n" + this.getDocuments(docs) + methodStr;
         }
     };
     
