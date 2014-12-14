@@ -194,8 +194,11 @@ type
         $$ = $1;
     }  
     |   TYPEDEF
+    |   UNSIGNED  type
     |   UNSIGNED
-    |   INLINE
+    |   INLINE   
+    |   type   CONST
+    |   CONST   type
     ;
     
 type-with-interr
@@ -456,6 +459,7 @@ lambda-expression
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
     }
+    |   OPEN_PARENS   dbl-expression-list   CLOSE_PARENS 
     |   OPEN_PARENS   type-expression-list   CLOSE_PARENS  OP_DBLPTR     expression 
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
@@ -464,6 +468,7 @@ lambda-expression
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
     }
+    |   OPEN_PARENS   type-expression-list   CLOSE_PARENS
     |   OPEN_PARENS   expression-list   CLOSE_PARENS  OP_DBLPTR     expression 
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
@@ -472,6 +477,7 @@ lambda-expression
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
     }
+    |   OPEN_PARENS   expression-list   CLOSE_PARENS
     ;
 
 delegate-expression
@@ -507,6 +513,8 @@ cast-expression
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
     }
+    |    OPEN_PARENS   expression-list   CLOSE_PARENS   expression
+    |   OPEN_PARENS   expression-list   CLOSE_PARENS 
     ;
     
 parenthesized-expression
@@ -544,19 +552,24 @@ member-access
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    |   invocation-expressions     OP_PTR     IDENTIFIER_WITH_KEYWORD
+    |   invocation-expressions     ptr-with-star     IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    |   primary-expression   OP_PTR   IDENTIFIER_WITH_KEYWORD
+    |   primary-expression   ptr-with-star   IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    |   type   OP_PTR   IDENTIFIER_WITH_KEYWORD
+    |   type   ptr-with-star   IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
     } 
     ; 
+    
+ptr-with-star
+    :   OP_PTR   STAR
+    |   OP_PTR
+    ;
 
 keyword-invocation
     :   DEFAULT
@@ -564,18 +577,7 @@ keyword-invocation
 
 
 invocation-expression
-    :   AWAIT   primary-expression   OPEN_PARENS   type   CLOSE_PARENS  
-    {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
-    }
-    |   AWAIT   primary-expression   OPEN_PARENS   argument-list   CLOSE_PARENS 
-    {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
-    }
-    |   AWAIT   primary-expression   OPEN_PARENS   CLOSE_PARENS  
-    {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4;
-    }
+    :   DOUBLE_COLON    invocation-expression
     |   primary-expression   OPEN_PARENS   type-name   CLOSE_PARENS   
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
@@ -592,6 +594,7 @@ invocation-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
+    
     ;
     
 element-access
@@ -712,6 +715,7 @@ object-creation-expression
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
+    |   NEW   type-with-identifier
     |   NEW   rank-specifiers   block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3;
@@ -1281,14 +1285,31 @@ local-variable-declarators
     :   local-variable-declarators   COMMA   local-variable-declarator
     |   local-variable-declarator
     ;
+
+local-rank-specifiers
+    :   local-rank-specifiers    local-rank-specifier
+    {
+        $$ = $1 + "" + $2;
+    }
+    |  local-rank-specifier
+    {
+        $$ = $1;
+    }
+    ;
+    
+local-rank-specifier
+    :   OPEN_BRACKET   expression-list   CLOSE_BRACKET
+    |   OPEN_BRACKET  dim-separators   CLOSE_BRACKET 
+    |   OPEN_BRACKET  CLOSE_BRACKET 
+    ;
+
     
 local-variable
     :   %empty 
     |   INTERR  IDENTIFIER_WITH_KEYWORD
     |   STARS   IDENTIFIER_WITH_KEYWORD  
     |   AMP   IDENTIFIER_WITH_KEYWORD  
-    |   IDENTIFIER_WITH_KEYWORD    rank-specifiers
-    |   IDENTIFIER_WITH_KEYWORD    OPEN_BRACKET   expression-list   CLOSE_BRACKET
+    |   IDENTIFIER_WITH_KEYWORD    local-rank-specifiers 
     |   IDENTIFIER_WITH_KEYWORD
     ;
     
@@ -1393,6 +1414,7 @@ for-statement
     |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
     |   FOR   OPEN_PARENS   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
     |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
+    |   FOR   OPEN_PARENS   for-initializer   COLON   expression   CLOSE_PARENS    embedded-statement
     ;
 
 for-initializer
@@ -1531,7 +1553,10 @@ variable-initializer
 
 /* C.2.11 Enums */
 enum-declaration
-    :   enum-class   IDENTIFIER_WITH_TEMPLATE   enum-body 
+    :   enum-class   enum-body
+    |   enum-class   enum-body    SEMICOLON
+    |   enum-class   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   enum-class   IDENTIFIER_WITH_TEMPLATE   enum-body 
     |   attributes   enum-class   IDENTIFIER_WITH_TEMPLATE   enum-body 
     |   modifiers   enum-class   IDENTIFIER_WITH_TEMPLATE   enum-body 
     |   enum-class   IDENTIFIER_WITH_TEMPLATE   enum-base   enum-body    
@@ -1877,7 +1902,7 @@ interface-declaration
     ;
  
 interface-base
-    :   COLON   interface-type-list
+    :   COLON   base-list
     {
         $$ = $2;
     }
@@ -2082,266 +2107,19 @@ interface-indexer-declaration
 
 /* C.2.8 Structs */
 struct-declaration 
-    :   STRUCT   IDENTIFIER_WITH_TEMPLATE    where-base    struct-body
-    {
-        $$ = {
-            "node": "struct", 
-            "body": $4
-        };  
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   attributes   STRUCT   IDENTIFIER_WITH_TEMPLATE    where-base    struct-body 
-    {
-        $$ = {
-            "node": "struct", 
-            "body": $5
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE    where-base    struct-body
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $1, 
-            "body": $5
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   where-base     struct-body   
-    {
-        $$ = {
-            "node": "struct", 
-            "base": $3,
-            "body": $5
-        };  
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   where-base     struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct", 
-            "body": $4
-        };  
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   attributes   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   where-base     struct-body
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $2, 
-            "body": $6
-        };  
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   where-base     struct-body
-    {
-        $$ = {
-            "node": "struct", 
-            "base": $4,
-            "body": $6
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   STRUCT   IDENTIFIER_WITH_TEMPLATE    where-base    struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct", 
-            "body": $5
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    where-base    struct-body
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $1, 
-            "base": $4,
-            "body": $6
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   where-base     struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $1, 
-            "body": $5
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    where-base    struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct", 
-            "base": $3,
-            "body": $5
-        };  
-        
-        if($2["typeParameters"]){
-            $$["name"] = $2["name"];
-            $$["typeParameters"] = $2["typeParameters"];
-        }
-        else {
-            $$["name"] = $2;
-        }
-    }
-    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    where-base    struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $1, 
-            "base": $4,
-            "body": $6
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    where-base    struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct", 
-            "base": $4,
-            "body": $6
-        };  
-        
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   where-base     struct-body   SEMICOLON
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $2, 
-            "body": $6
-        };  
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   where-base     struct-body  
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $2, 
-            "base": $5,
-            "body": $7
-        };  
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   where-base     struct-body   SEMICOLON 
-    {
-        $$ = {
-            "node": "struct",
-            "modifiers": $2, 
-            "base": $5,
-            "body": $7
-        };  
-        
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
+    :   STRUCT   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE    struct-body     
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE     struct-body   SEMICOLON
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body 
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body   SEMICOLON
+    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE      struct-body 
+    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   struct-body
+    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE     struct-body   SEMICOLON
+    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body   SEMICOLON
     ;
  
 struct-interfaces
-    :   COLON   interface-type-list
+    :   COLON   base-list
     {
         $$ = $2;
     }
@@ -2420,6 +2198,8 @@ block_or_statement
     |   method-declaration 
     |   class-member-declaration  
     |   namespace-declaration
+    |   struct-declaration 
+    |   enum-declaration
     ;
 
 namespace-declaration
@@ -2887,9 +2667,10 @@ IDENTIFIER_WITH_KEYWORD
     |   TYPE
     |   THIS
     |   ASYNC
-    |   WHERE
+    |   VOLATILE
     |   STRING
     |   DOTS
+    |   OBJECT  
     |   literal
     ;
 

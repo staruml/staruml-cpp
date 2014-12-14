@@ -63,7 +63,7 @@ Unicode_escape_sequence         '\\u' {HEX_DIGIT}{4}|'\\U' {HEX_DIGIT}{8}
 
 
 
-Template                        [<][^=\(\);\|\+\-\"\'\{\\}:]*[>]+
+Template                        [<][^=;\|\+\-\"\'\{\\}:]*[>]+
 
 /* Identifiers  */
 IDENTIFIER                      ({Available_identifier}|'@'{Identifier_or_keyword}) 
