@@ -269,9 +269,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "method"                        return 'METHOD';
 "param"                         return 'PARAM';
 "property"                      return 'PROPERTY'; 
-
-"get"                           return 'GET';
-"set"                           return 'SET';
+ 
 
 "add"                           return 'ADD';
 "remove"                        return 'REMOVE';

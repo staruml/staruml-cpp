@@ -4,8 +4,7 @@
 %token ABSTRACT AS BASE BOOL BREAK BYTE CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT IN INT INTERFACE INTERNAL IS LOCK LONG NAMESPACE NEW NULL OBJECT OPERATOR OUT OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY REF RETURN SBYTE SEALED SHORT SIZEOF STACKALLOC STATIC STRING STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
 
 %token ASSEMBLY MODULE FIELD METHOD PARAM PROPERTY TYPE
-
-%token GET SET
+ 
 
 %token ADD REMOVE
 
@@ -199,6 +198,8 @@ type
     |   INLINE   
     |   type   CONST
     |   CONST   type
+    |   STRUCT  type
+    |   STATIC  type
     ;
     
 type-with-interr
@@ -234,7 +235,7 @@ non-array-type
     ;
     
 array-type
-    :   type  rank-specifiers
+    :   type  local-rank-specifiers
     {
         $$ = $1 + "" + $2;
     }
@@ -380,11 +381,7 @@ primary-no-array-creation-expression
     |   post-decrement-expression
     {
         $$ = $1;
-    }
-    |   delegate-creation-expression
-    {
-        $$ = $1;
-    }
+    } 
     |   object-creation-expression
     {
         $$ = $1;
@@ -666,65 +663,71 @@ type-with-identifier
     }
     ;
     
+new-unsigned
+    :   NEW   UNSIGNED
+    |   NEW
+    ;
+    
 object-creation-expression
-    :   NEW   type-with-identifier   OPEN_PARENS   argument-list    CLOSE_PARENS    invocation-expressions    IDENTIFIER_WITH_DOT      block-expression-with-brace
+    :   new-unsigned   type-with-identifier   OPEN_PARENS   argument-list    CLOSE_PARENS    invocation-expressions    IDENTIFIER_WITH_DOT      block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7 + "" + $8;
     }
-    |   NEW   type-with-identifier   OPEN_PARENS   argument-list    CLOSE_PARENS    invocation-expressions      IDENTIFIER_WITH_DOT
+    |   new-unsigned   type-with-identifier   OPEN_PARENS   argument-list    CLOSE_PARENS    invocation-expressions      IDENTIFIER_WITH_DOT
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     }
-    |   NEW   type-with-identifier   OPEN_PARENS   CLOSE_PARENS      invocation-expressions     IDENTIFIER_WITH_DOT    block-expression-with-brace
+    |   new-unsigned   type-with-identifier   OPEN_PARENS   CLOSE_PARENS      invocation-expressions     IDENTIFIER_WITH_DOT    block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     }
-    |   NEW   type-with-identifier   OPEN_PARENS   CLOSE_PARENS      invocation-expressions     IDENTIFIER_WITH_DOT 
+    |   new-unsigned   type-with-identifier   OPEN_PARENS   CLOSE_PARENS      invocation-expressions     IDENTIFIER_WITH_DOT 
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
     }
-    |   NEW   type-with-identifier   OPEN_PARENS   CLOSE_PARENS     block-expression-with-brace
-    {
+    |   new-unsigned   type-with-identifier   OPEN_PARENS   CLOSE_PARENS     block-expression-with-brace
+    { 
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
     }
-    |   NEW   type-with-identifier    block-expression-with-brace
+    |   new-unsigned   type-with-identifier    block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3;
     }
-    |   NEW   non-array-type   rank-specifiers     block-expression-with-brace
+    |   new-unsigned   non-array-type   rank-specifiers
+    |   new-unsigned   non-array-type   rank-specifiers     block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
-    |   NEW   non-array-type   OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
+    |   new-unsigned   non-array-type   OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
     }
-    |   NEW   non-array-type   OPEN_BRACKET   argument-list   CLOSE_BRACKET    
+    |   new-unsigned   non-array-type   OPEN_BRACKET   argument-list   CLOSE_BRACKET    
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
     }
-    |   NEW   type-with-identifier   rank-specifiers    block-expression-with-brace 
+    |   new-unsigned   type-with-identifier   rank-specifiers    block-expression-with-brace 
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
-    |   NEW   type-with-identifier   OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
+    |   new-unsigned   type-with-identifier   OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
     }
-    |   NEW   type-with-identifier   OPEN_BRACKET   argument-list   CLOSE_BRACKET     
+    |   new-unsigned   type-with-identifier   OPEN_BRACKET   argument-list   CLOSE_BRACKET     
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
-    |   NEW   type-with-identifier
-    |   NEW   rank-specifiers   block-expression-with-brace
+    |   new-unsigned   type-with-identifier
+    |   new-unsigned   rank-specifiers   block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3;
     }
-    |   NEW   rank-specifiers     
+    |   new-unsigned   rank-specifiers     
     {
         $$ = $1 + " " + $2;
     }
-    |   NEW   block-expression-with-brace
+    |   new-unsigned   block-expression-with-brace
     {
         $$ = $1 + " " + $2;
     }
@@ -2346,8 +2349,8 @@ modifier
     |   VOLATILE 
     |   VIRTUAL   
     |   OVERRIDE  
-    |   EXTERN  
-    |   NEW 
+    |   EXTERN   
+    |   IDENTIFIER   STATIC
     ;
 
 modifiers
@@ -2365,7 +2368,8 @@ modifiers
 /* C.2.7 Classes */
 
 class-key
-    :   CLASS
+    :   FRIEND  CLASS
+    |   CLASS
     |   STRUCT
     |   UNION
     ; 
@@ -2473,6 +2477,8 @@ class-member-declaration
     }
     |   using-directive
     |   constant-declaration
+    |   FRIEND   CLASS   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   UNION   block   SEMICOLON
     ;
 
 
@@ -2593,6 +2599,7 @@ class-method-header
     |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
     |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
     |   member-name-with-double-colon
+    |   class-method-header    IDENTIFIER
     ;
      
 
@@ -2708,28 +2715,7 @@ property-declaration
     |   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
     |   attributes   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE 
     ;
-
-accessor-declarations
-    :   get-accessor-declaration 
-    |   get-accessor-declaration   set-accessor-declaration
-    |   set-accessor-declaration 
-    |   set-accessor-declaration   get-accessor-declaration
-    ;
-
-get-accessor-declaration
-    :   attributes  modifiers  GET   method-body
-    |   modifiers  GET   method-body
-    |   attributes  GET   method-body
-    |   GET   method-body
-    ;
-
-set-accessor-declaration
-    :   attributes  modifiers    SET   method-body
-    |   modifiers   SET   method-body
-    |   attributes   SET   method-body
-    |   SET   method-body
-    ;
-
+ 
  
 
 
@@ -2812,14 +2798,14 @@ conversion-operator-declarator
 
 
 constructor-declaration
-    :   constructor-declarator   method-body 
-    |   attributes   constructor-declarator   method-body 
-    |   modifiers   constructor-declarator   method-body 
-    |   attributes   modifiers   constructor-declarator   method-body 
+    :   constructor-declarator   SEMICOLON
+    |   constructor-declarator   method-body  
+    |   modifiers   constructor-declarator   method-body  
     ;
  
 constructor-declarator
-    :   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS 
+    :   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
+    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS 
     |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS 
     |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS   ctor-initializer 
     |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS   ctor-initializer 
