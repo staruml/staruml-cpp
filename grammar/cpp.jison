@@ -15,7 +15,7 @@
 
 %token YIELD  ASYNC  AWAIT  WHERE
 
-%token DELETE  FRIEND  TYPEDEF  AUTO   REGISTER   INLINE    SIGNED    UNSIGNED    UNION    ASM
+%token DELETE  FRIEND  TYPEDEF  AUTO   REGISTER   INLINE    SIGNED    UNSIGNED    UNION    ASM   DOTS
 
 %token REAL_LITERAL
 %token INTEGER_LITERAL   
@@ -168,7 +168,7 @@ STARS
     ;
 
 type 
-    :   type    TEMPLATE
+    :   type    TEMPLATE 
     |   non-array-type    AMP
     {
         $$ = $1 + "" + $2;
@@ -192,8 +192,10 @@ type
     |   array-type       
     {
         $$ = $1;
-    } 
-    |   CONST 
+    }  
+    |   TYPEDEF
+    |   UNSIGNED
+    |   INLINE
     ;
     
 type-with-interr
@@ -328,6 +330,10 @@ primary-no-array-creation-expression
     {
         $$ = $1;
     }
+    |   IDENTIFIER_WITH_KEYWORD
+    {
+        $$ = $1;
+    }
     |   lambda-expression
     {
         $$ = $1;
@@ -404,10 +410,7 @@ primary-no-array-creation-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    |   IDENTIFIER_WITH_KEYWORD
-    {
-        $$ = $1;
-    }
+    
     |   DELEGATE block
     {
         $$ = $1 + "" + $2;
@@ -416,6 +419,8 @@ primary-no-array-creation-expression
     {
         $$ = $1;
     }
+    
+    |   deallocation-expression 
     ;
  
  
@@ -512,7 +517,11 @@ parenthesized-expression
     ;
 
 double-colon-access
-    :   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  member-access
+    :   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  primary-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
+    |   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  member-access
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
@@ -546,7 +555,7 @@ member-access
     |   type   OP_PTR   IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
-    }
+    } 
     ; 
 
 keyword-invocation
@@ -567,11 +576,15 @@ invocation-expression
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
+    |   primary-expression   OPEN_PARENS   type-name   CLOSE_PARENS   
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   primary-expression   OPEN_PARENS   type   CLOSE_PARENS   
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
     }
-    |   primary-expression   OPEN_PARENS   argument-list   CLOSE_PARENS 
+    |   primary-expression   OPEN_PARENS   argument-list   CLOSE_PARENS   
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
     }
@@ -637,7 +650,10 @@ post-decrement-expression
     ;
     
 type-with-identifier
-    :   IDENTIFIER  TEMPLATE  
+    :   OPEN_PARENS   type-with-identifier   CLOSE_PARENS   type-with-identifier
+    |   OPEN_PARENS   type-with-identifier   CLOSE_PARENS  
+    
+    |   IDENTIFIER  TEMPLATE  
     {
         $$ = $1 + "" + $2;
     }
@@ -881,8 +897,17 @@ unary-expression
     }
     ;
 
+unary-or-cast-expression
+    :   unary-expression
+    |   OPEN_PARENS  type-name  CLOSE_PARENS  cast-expression
+    ;
 
- 
+deallocation-expression
+    :   DOUBLE_COLON     DELETE    unary-or-cast-expression
+    |   DELETE      unary-or-cast-expression
+    |   DOUBLE_COLON     DELETE   OPEN_BRACKET     CLOSE_BRACKET    unary-or-cast-expression
+    |   DELETE     OPEN_BRACKET     CLOSE_BRACKET    unary-or-cast-expression
+    ;
 
 pre-increment-expression
     :   OP_INC   unary-expression
@@ -1234,7 +1259,7 @@ empty-statement
 
 labeled-statement
     :   IDENTIFIER_WITH_KEYWORD   COLON   switch-labels
-    |   IDENTIFIER_WITH_KEYWORD   COLON   statement
+    |   IDENTIFIER_WITH_KEYWORD   COLON   statement 
     ;
 
 declaration-statement
@@ -1248,6 +1273,7 @@ declaration-statement
     
 local-variable-declaration
     :   primary-expression   local-variable-declarators
+    |   fixed-parameter-prefix   type   local-variable-declarators
     |   type   local-variable-declarators
     ;
 
@@ -1261,6 +1287,8 @@ local-variable
     |   INTERR  IDENTIFIER_WITH_KEYWORD
     |   STARS   IDENTIFIER_WITH_KEYWORD  
     |   AMP   IDENTIFIER_WITH_KEYWORD  
+    |   IDENTIFIER_WITH_KEYWORD    rank-specifiers
+    |   IDENTIFIER_WITH_KEYWORD    OPEN_BRACKET   expression-list   CLOSE_BRACKET
     |   IDENTIFIER_WITH_KEYWORD
     ;
     
@@ -1498,232 +1526,6 @@ variable-initializer
     ;
 
 
-
-/* C.2.13 Attributes */
-global-attributes
-    :   global-attribute-sections
-    ;
-    
-global-attribute-sections
-    :   global-attribute-section
-    |   global-attribute-sections global-attribute-section
-    ;
-    
-global-attribute-section
-    :   OPEN_BRACKET   global-attribute-target-specifier   attribute-list   CLOSE_BRACKET
-    |   OPEN_BRACKET   global-attribute-target-specifier   attribute-list   COMMA   CLOSE_BRACKET
-    ;
-    
-global-attribute-target-specifier
-    :   global-attribute-target   COLON
-    ;
-
-global-attribute-target
-    :   ASSEMBLY
-    |   MODULE
-    ;
-    
-attributes
-    :   attribute-sections
-    ;
-
-attribute-sections
-    :   attribute-section
-    |   attribute-sections   attribute-section
-    ;
-    
-attribute-section
-    :   OPEN_BRACKET   attribute-list   CLOSE_BRACKET
-    |   OPEN_BRACKET   attribute-list   COMMA   CLOSE_BRACKET
-    |   OPEN_BRACKET   attribute-target-specifier   attribute-list   CLOSE_BRACKET
-    |   OPEN_BRACKET   attribute-target-specifier   attribute-list   COMMA   CLOSE_BRACKET
-    ;
-
-attribute-target-specifier
-    :   attribute-target   COLON
-    ;
-
-attribute-target
-    :   FIELD 
-    |   METHOD
-    |   PARAM
-    |   PROPERTY
-    |   RETURN
-    |   TYPE
-    ;
-    
-attribute-list
-    :   attribute
-    |   attribute-list   COMMA   attribute
-    ;
-
-attribute
-    :   attribute-name  
-    |   attribute-name   attribute-arguments   
-    ;
-
-attribute-name
-    :   type-name
-    ;
-    
-attribute-arguments
-    :   OPEN_PARENS   CLOSE_PARENS
-    |   OPEN_PARENS   positional-argument-list   CLOSE_PARENS
-    |   OPEN_PARENS   positional-argument-list   COMMA   named-argument-list   CLOSE_PARENS
-    |   OPEN_PARENS   named-argument-list   CLOSE_PARENS
-    ;
-    
-positional-argument-list
-    :   positional-argument
-    |   positional-argument-list   COMMA   positional-argument
-    ;
-
-positional-argument
-    :   attribute-argument-expression
-    ;
-
-named-argument-list
-    :   named-argument
-    |   named-argument-list   COMMA   named-argument
-    ;
-    
-named-argument
-    :   IDENTIFIER_WITH_TEMPLATE   ASSIGN   attribute-argument-expression
-    ;
-    
-attribute-argument-expression
-    :   expression
-    ;
-
-
-
-
- 
-
-/* C.2.12 Delegates */
-
-delegate-declaration
-    :   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    where-base    SEMICOLON
-    {
-        $$ = {
-            "node": "delegate", 
-            "type": $2
-        };
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   attributes   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    where-base    SEMICOLON
-    {
-        $$ = {
-            "node": "delegate", 
-            "type": $3 
-        };
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   modifiers   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS     where-base   SEMICOLON
-    {
-        $$ = {
-            "node": "delegate",
-            "modifiers": $1,
-            "type": $3 
-        };
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     where-base   SEMICOLON
-    {
-        $$ = {
-            "node": "delegate", 
-            "type": $2, 
-            "parameters": $5
-        };
-        if($3["typeParameters"]){
-            $$["name"] = $3["name"];
-            $$["typeParameters"] = $3["typeParameters"];
-        }
-        else {
-            $$["name"] = $3;
-        }
-    }
-    |   modifiers   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    where-base    SEMICOLON
-    {
-        $$ = {
-            "node": "delegate",
-            "modifiers": $1,
-            "type": $3, 
-            "parameters": $6
-        };
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     where-base   SEMICOLON
-    {
-        $$ = {
-            "node": "delegate", 
-            "type": $3, 
-            "parameters": $6
-        };
-        if($4["typeParameters"]){
-            $$["name"] = $4["name"];
-            $$["typeParameters"] = $4["typeParameters"];
-        }
-        else {
-            $$["name"] = $4;
-        }
-    }
-    |   attributes   modifiers   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS     where-base   SEMICOLON
-    {
-        $$ = {
-            "node": "delegate",
-            "modifiers": $2,
-            "type": $4
-        };
-        if($5["typeParameters"]){
-            $$["name"] = $5["name"];
-            $$["typeParameters"] = $5["typeParameters"];
-        }
-        else {
-            $$["name"] = $5;
-        }
-    }
-    |   attributes   modifiers   DELEGATE   type-with-interr   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     where-base   SEMICOLON
-    {
-        $$ = {
-            "node": "delegate",
-            "modifiers": $2,
-            "type": $4, 
-            "parameters": $7
-        };
-        if($5["typeParameters"]){
-            $$["name"] = $5["name"];
-            $$["typeParameters"] = $5["typeParameters"];
-        }
-        else {
-            $$["name"] = $5;
-        }
-    }
-    ;
     
  
 
@@ -2617,25 +2419,14 @@ block_or_statement
     :   class-declaration
     |   method-declaration 
     |   class-member-declaration  
+    |   namespace-declaration
     ;
 
 namespace-declaration
-    :   NAMESPACE   namespace-or-type-name   namespace-body 
-    {
-        $$ = {
-            "node":"namespace",
-            "qualifiedName":$2,
-            "body":$3
-        };
-    }
-    |   NAMESPACE   namespace-or-type-name   namespace-body   SEMICOLON
-    {
-        $$ = {
-            "node":"Package",
-            "qualifiedName":$2,
-            "body":$3
-        };
-    }
+    :   NAMESPACE   namespace-or-type-name   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    |   NAMESPACE   namespace-or-type-name   OPEN_BRACE   CLOSE_BRACE
+    |    NAMESPACE   INTERNAL   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    |   NAMESPACE   INTERNAL   OPEN_BRACE   CLOSE_BRACE
     ;
  
 
@@ -2681,7 +2472,14 @@ using-directive
     ;
 
 using-alias-directive
-    :   USING   IDENTIFIER_WITH_TEMPLATE   ASSIGN   namespace-or-type-name   SEMICOLON
+    :   USING   NAMESPACE   IDENTIFIER_WITH_TEMPLATE   ASSIGN   namespace-or-type-name   SEMICOLON
+    {
+        $$ = {
+            "node" : "using",
+            "qualifiedName" : $4
+        };
+    }
+    |   USING   IDENTIFIER_WITH_TEMPLATE   ASSIGN   namespace-or-type-name   SEMICOLON
     {
         $$ = {
             "node" : "using",
@@ -2691,7 +2489,14 @@ using-alias-directive
     ;
 
 using-namespace-directive
-    :   USING   namespace-name   SEMICOLON
+    :   USING   NAMESPACE   namespace-name   SEMICOLON
+    {
+        $$ = {
+            "node" : "using",
+            "qualifiedName" : $2
+        };
+    }
+    |   USING   namespace-name   SEMICOLON
     {
         $$ = {
             "node" : "using",
@@ -2762,7 +2567,7 @@ modifier
     |   VIRTUAL   
     |   OVERRIDE  
     |   EXTERN  
-    |   NEW
+    |   NEW 
     ;
 
 modifiers
@@ -2821,6 +2626,7 @@ access-specifier
     :   PRIVATE
     |   PROTECTED
     |   PUBLIC
+    |   type
     ;
      
 
@@ -2830,10 +2636,10 @@ class-body
     ;
 
 member-list
-    :   class-member-declaration    member-list
-    |   class-member-declaration
-    |   access-specifier    COLON   member-list
+    :   access-specifier    COLON   member-list
     |   access-specifier    COLON
+    |   class-member-declaration    member-list
+    |   class-member-declaration
     ;
 
 class-member-declarations
@@ -2886,7 +2692,7 @@ class-member-declaration
         $$ = $1;
     }
     |   using-directive
-    
+    |   constant-declaration
     ;
 
 
@@ -2908,8 +2714,7 @@ constant-declarator
 
 field-declaration
     :   field-variable-declarators   SEMICOLON 
-    |   method-types   field-variable-declarators   SEMICOLON 
-    |   attributes   method-types     field-variable-declarators   SEMICOLON   
+    |   modifiers    field-variable-declarators   SEMICOLON    
     ;
       
 
@@ -2919,8 +2724,8 @@ field-variable-declarators
     ;
 
 field-variable-declarator
-    :   member-name-with-double-colon      ASSIGN   variable-initializer 
-    |   member-name-with-double-colon    
+    :   member-name-with-double-colon      ASSIGN     variable-initializer 
+    |   member-name-with-double-colon     
     ;
 
 
@@ -2941,16 +2746,44 @@ variable-initializer
 
 
 method-declaration
-    :   method-header   method-prefixs   block  
-    |   method-header   block  
+    :   method-header   method-prefixs      ctor-initializer   block  
+    |   method-header   ctor-initializer    block  
+    |   method-header   method-prefixs      block  
+    |   method-header   block 
     ;
+    
+ctor-initializer
+    :   COLON    mem-initializer-list
+    ;
+
+mem-initializer-list
+    :   mem-initializer    COMMA    mem-initializer-list
+    |   mem-initializer
+    ;
+
+mem-initializer
+    :   type     OPEN_PARENS     member-name-with-double-colon-list     CLOSE_PARENS
+    |   type     OPEN_PARENS     argument-list   CLOSE_PARENS
+    |   type     OPEN_PARENS     CLOSE_PARENS 
+    ;    
+
+member-name-with-double-colon-list
+    :   member-name-with-double-colon-list    COMMA    member-name-with-double-colon
+    |   member-name-with-double-colon-literal 
+    ;
+    
+member-name-with-double-colon-literal
+    :   expression
+    ; 
     
 class-method-declaration
     :   class-method-header   method-prefixs   block   SEMICOLON 
+    |   class-method-header   method-prefixs   ctor-initializer   block
     |   class-method-header   method-prefixs   block
     |   class-method-header   method-prefixs   SEMICOLON
     |   class-method-header   method-prefixs   
     |   class-method-header   block   SEMICOLON 
+    |   class-method-header   ctor-initializer    block
     |   class-method-header   block
     |   class-method-header   SEMICOLON
     |   class-method-header   
@@ -2970,7 +2803,8 @@ method-prefix
 class-method-header  
     :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
     |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
-    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
+    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
+    |   CONST   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
     |   attributes   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS      
     |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS 
     |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
@@ -2998,11 +2832,8 @@ method-types
     ;
 
 method-type
-    :   method-type    type
-    |   type    
-    |   INTERR  type
-    |   modifier
-    |   method-type    
+    :   type    
+    |   INTERR   
     ;     
      
 member-name-with-double-colon
@@ -3023,7 +2854,8 @@ member-name
  
 
 method-body
-    :   block
+    :   block   SEMICOLON
+    |   block
     |   SEMICOLON
     ;
 
@@ -3057,17 +2889,25 @@ IDENTIFIER_WITH_KEYWORD
     |   ASYNC
     |   WHERE
     |   STRING
+    |   DOTS
+    |   literal
     ;
 
 fixed-parameter
-    :   CONST   type-with-interr   IDENTIFIER_WITH_KEYWORD      ASSIGN     expression  
-    |   CONST   type-with-interr   IDENTIFIER_WITH_KEYWORD     
-    |   type-with-interr   IDENTIFIER_WITH_KEYWORD      ASSIGN     expression  
+    :   type-with-interr   IDENTIFIER_WITH_KEYWORD     ASSIGN     expression  
     |   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    |   type-with-interr   
+    |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD  ASSIGN   expression  
+    |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD     
     |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD 
     |   attributes   type-with-interr   IDENTIFIER_WITH_KEYWORD 
     |   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
     |   attributes   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
+    ;
+
+fixed-parameter-prefix
+    :   CONST
+    |   UNSIGNED
     ;
 
 parameter-modifier
@@ -3198,10 +3038,10 @@ constructor-declaration
     ;
  
 constructor-declarator
-    :   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS 
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS 
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   constructor-initializer 
-    |   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   constructor-initializer 
+    :   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS 
+    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS 
+    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS   ctor-initializer 
+    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS   ctor-initializer 
     ;
 
 constructor-initializer
@@ -3220,7 +3060,15 @@ static-constructor-declaration
  
 
 destructor-declaration
-    :   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
+    :   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   modifiers   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   modifiers   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
+    |   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
     |   modifiers   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
     |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
     |   modifiers   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
@@ -3230,4 +3078,4 @@ destructor-declaration
     |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
     ;
  
-
+ 

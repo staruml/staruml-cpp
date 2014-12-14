@@ -357,6 +357,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 ">>"                            return 'RIGHT_SHIFT';
 ">>="                           return 'RIGHT_SHIFT_ASSIGNMENT';
 {DOT}                           return 'DOT'
+"..."                           return 'DOTS'
 
 {Template}                      %{
                                         //console.log(this.showPosition());
