@@ -1,7 +1,7 @@
 
 %token IDENTIFIER 
 
-%token ABSTRACT AS BASE BOOL BREAK BYTE CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT   INT INTERFACE INTERNAL IS LOCK LONG NAMESPACE NEW NULL OBJECT OPERATOR  OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY RETURN SBYTE SEALED SHORT SIZEOF STACKALLOC STATIC STRING STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
+%token ABSTRACT AS BASE BOOL BREAK BYTE CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT     INTERFACE INTERNAL IS LOCK LONG NAMESPACE NEW NULL  OPERATOR  OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY RETURN SBYTE SEALED SHORT SIZEOF STACKALLOC STATIC  STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
 
 %token ASSEMBLY MODULE FIELD METHOD PARAM PROPERTY TYPE
  
@@ -192,7 +192,7 @@ type
     {
         $$ = $1;
     }  
-    |   TYPEDEF
+    |   TYPEDEF 
     |   UNSIGNED  type
     |   UNSIGNED
     |   INLINE   
@@ -201,6 +201,9 @@ type
     |   CONST   type 
     |   STATIC  type
     |   type   CARET 
+    |   VOLATILE  type
+    |   VIRTUAL   type
+    |   type   DOUBLE_COLON   type
     ;
     
 type-with-interr
@@ -212,8 +215,7 @@ non-array-type
     |   SBYTE
     |   BYTE
     |   SHORT
-    |   USHORT
-    |   INT
+    |   USHORT 
     |   UINT
     |   LONG
     |   ULONG
@@ -221,11 +223,26 @@ non-array-type
     |   FLOAT
     |   DOUBLE
     |   DECIMAL
-    |   BOOL 
-    |   OBJECT
-    |   STRING  
+    |   BOOL    
     |   VOID 
     |   AUTO
+    |   SHORT INT
+    |   LONG  INT
+    |   LONG  LONG
+    |   SIGNED  INT
+    |   SIGNED  CHAR
+    |   SIGNED  LONG
+    |   SIGNED  SHORT
+    |   SIGNED  SHORT INT
+    |   SIGNED  LONG  INT
+    |   SIGNED  LONG  LONG
+    |   UNSIGNED  INT
+    |   UNSIGNED  CHAR
+    |   UNSIGNED  LONG
+    |   UNSIGNED  SHORT
+    |   UNSIGNED  SHORT INT
+    |   UNSIGNED  LONG  INT
+    |   UNSIGNED  LONG  LONG
     ;
     
 array-type
@@ -326,6 +343,7 @@ primary-no-array-creation-expression
     {
         $$ = $1;
     }
+    |   DOUBLE_COLON   IDENTIFIER_WITH_KEYWORD
     |   element-access
     {
         $$ = $1;
@@ -855,6 +873,7 @@ typeof-expression
 sizeof-expression
     :   SIZEOF   OPEN_PARENS   STARS   type-with-interr   CLOSE_PARENS
     |   SIZEOF   OPEN_PARENS   type-with-interr   CLOSE_PARENS  
+    |   SIZEOF   type-with-interr
     ;
 
 
@@ -1224,6 +1243,8 @@ statement
     |   declaration-statement
     |   embedded-statement  
     ;
+    
+    
  
 
 embedded-statement
@@ -1232,6 +1253,8 @@ embedded-statement
     |   statement-expression block
     |   statement-expression SEMICOLON
     |   statement-expression local-rank-specifiers ASSIGN variable-initializer SEMICOLON
+    |   statement-expression local-rank-specifiers  SEMICOLON
+    |   statement-expression local-rank-specifiers  COMMA   local-variable-declarators   SEMICOLON
     |   selection-statement
     |   iteration-statement
     |   jump-statement
@@ -2117,16 +2140,31 @@ interface-indexer-declaration
 /* C.2.8 Structs */
 struct-declaration 
     :   STRUCT   struct-body
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE     OPEN_PARENS   CLOSE_PARENS    struct-method-body
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE     OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    struct-method-body
+    |   STRUCT   type   IDENTIFIER_WITH_TEMPLATE    OPEN_PARENS   CLOSE_PARENS        struct-method-body
+    |   STRUCT   type   IDENTIFIER_WITH_TEMPLATE    OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    struct-method-body    
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
     |   STRUCT   type   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE    struct-body     
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE     struct-body   SEMICOLON
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body 
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body   SEMICOLON
+    |   modifiers   STRUCT   struct-body
+    |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   SEIMCOLON
+    |   modifiers   STRUCT   type   IDENTIFIER_WITH_TEMPLATE    SEMICOLON
     |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE      struct-body 
     |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces   struct-body
     |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE     struct-body   SEMICOLON
     |   modifiers   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body   SEMICOLON
+    |   modifiers   STRUCT   struct-body   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   CONST   struct-declaration
+    |   STRUCT  struct-body  IDENTIFIER_WITH_TEMPLATE  SEMICOLON
+    ;
+ 
+struct-method-body
+    :   CONST  block
+    |   block
     ;
  
 struct-interfaces
@@ -2161,7 +2199,7 @@ struct-member-declaration
     {
         $$ = $1;
     }
-    |   method-declaration
+    |   class-method-declaration
     {
         $$ = $1;
     }
@@ -2176,11 +2214,7 @@ struct-member-declaration
     |   operator-declaration
     {
         $$ = $1;
-    }
-    |   constructor-declaration
-    {
-        $$ = $1;
-    }
+    } 
     |   static-constructor-declaration
     {
         $$ = $1;
@@ -2188,7 +2222,7 @@ struct-member-declaration
     |   type-declaration
     {
         $$ = $1;
-    }
+    } 
     ;
 
 
@@ -2211,6 +2245,13 @@ block_or_statement
     |   namespace-declaration
     |   struct-declaration 
     |   enum-declaration
+    |   extern-declaration
+    ;
+
+extern-declaration
+    :   EXTERN  STRING_LITERAL  OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    |   EXTERN  STRING_LITERAL  OPEN_BRACE    CLOSE_BRACE
+    |   EXTERN  class-method-declaration
     ;
 
 namespace-declaration
@@ -2359,9 +2400,9 @@ modifier
     |   READONLY
     |   VOLATILE 
     |   VIRTUAL   
-    |   OVERRIDE  
-    |   EXTERN   
+    |   OVERRIDE   
     |   IDENTIFIER   STATIC
+    |   TYPEDEF 
     ;
 
 modifiers
@@ -2469,11 +2510,7 @@ class-member-declaration
     |   operator-declaration
     {
         $$ = $1;
-    }
-    |   constructor-declaration
-    {
-        $$ = $1;
-    }
+    } 
     |   static-constructor-declaration
     {
         $$ = $1;
@@ -2585,7 +2622,7 @@ class-method-declaration
     |   class-method-header   block   SEMICOLON 
     |   class-method-header   ctor-initializer    block
     |   class-method-header   block
-    |   class-method-header   SEMICOLON
+    |   class-method-header   SEMICOLON 
     |   class-method-header   
     ;
 
@@ -2595,29 +2632,27 @@ method-prefixs
     ;
 
 method-prefix
-    :   CONST
+    :   CONST   type
+    |   CONST
     |   OVERRIDE
     ;
     
 
 class-method-header  
-    :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
-    |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
-    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS          
+    :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
+    |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS        
+    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS         
     |   attributes   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS      
-    |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS 
-    |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
+    |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS  
+    |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
+    |   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS        
+    |   type   OPEN_PARENS   CLOSE_PARENS 
     |   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
-    |   attributes   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
-    |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
-    |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
-    |   member-name-with-double-colon
-    |   class-method-header    IDENTIFIER
-    |   class-method-header      ASSIGN   variable-initializer 
-    
-    |   class-method-header    CONST    ASSIGN   variable-initializer 
-    ;
-     
+    |   member-name-with-double-colon 
+    |   class-method-header    IDENTIFIER 
+    |   class-method-header      ASSIGN   variable-initializer  
+    |   class-method-header    CONST    ASSIGN   variable-initializer  
+    ; 
 
 method-header  
     :   method-types    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
@@ -2625,7 +2660,7 @@ method-header
     |   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
     |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
     |   attributes   method-types    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS         
-    |   attributes   method-types   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
+    |   attributes   method-types   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS  
     ;
      
 
@@ -2690,11 +2725,10 @@ IDENTIFIER_WITH_KEYWORD
     |   TYPE
     |   THIS
     |   ASYNC
-    |   VOLATILE
-    |   STRING
-    |   DOTS
-    |   OBJECT  
+    |   VOLATILE 
+    |   DOTS   
     |   DELEGATE
+    |   OPERATOR
     |   literal
     ;
 
@@ -2817,11 +2851,12 @@ constructor-declaration
     ;
  
 constructor-declarator
-    :   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
-    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS 
-    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS 
-    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   CLOSE_PARENS   ctor-initializer 
-    |   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS   ctor-initializer 
+    :   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS 
+    |   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   ctor-initializer 
+    |   type   OPEN_PARENS   CLOSE_PARENS 
+    |   type   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS 
+    |   type   OPEN_PARENS   CLOSE_PARENS   ctor-initializer 
+    |   type   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS   ctor-initializer 
     ;
 
 constructor-initializer

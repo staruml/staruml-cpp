@@ -104,7 +104,7 @@ INTEGER_LITERAL                 {Hexadecimal_integer_literal}|{Decimal_integer_l
 Decimal_integer_literal         {Decimal_digits}{Integer_type_suffix}?
 Decimal_digits                  {DECIMAL_DIGIT}+
 DECIMAL_DIGIT                   [0-9]
-Integer_type_suffix             'UL'|'Ul'|'uL'|'ul'|'LU'|'Lu'|'LL'|'lU'|'lu'|'ll'|'U'|'u'|'L'|'l'|'i64'
+Integer_type_suffix             'ULL'|'UL'|'Ul'|'uL'|'ul'|'LU'|'Lu'|'LL'|'lU'|'lu'|'ll'|'U'|'u'|'L'|'l'|'i64'
 Hexadecimal_integer_literal     ('0x'{Hex_digits}{Integer_type_suffix}?) | ('0X'{Hex_digits}{Integer_type_suffix}?)
 Hex_digits                      {HEX_DIGIT}+
 HEX_DIGIT                       [0-9a-fA-F] 
@@ -215,8 +215,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "foreach"                       return 'FOREACH';
 "goto"                          return 'GOTO';
 "if"                            return 'IF';
-"implicit"                      return 'IMPLICIT'; 
-"int"                           return 'INT';
+"implicit"                      return 'IMPLICIT';  
 "interface"                     return 'INTERFACE';
 "internal"                      return 'INTERNAL';
 "is"                            return 'IS';
@@ -224,8 +223,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "long"                          return 'LONG';
 "namespace"                     return 'NAMESPACE';
 "new"                           return 'NEW';
-"null"                          return 'NULL';
-"object"                        return 'OBJECT';
+"null"                          return 'NULL'; 
 "operator"                      return 'OPERATOR'; 
 "override"                      return 'OVERRIDE';
 "params"                        return 'PARAMS';
@@ -239,8 +237,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "short"                         return 'SHORT';
 "sizeof"                        return 'SIZEOF';
 "stackalloc"                    return 'STACKALLOC';
-"static"                        return 'STATIC';
-"string"                        return 'STRING';
+"static"                        return 'STATIC'; 
 "struct"                        return 'STRUCT';
 "switch"                        return 'SWITCH';
 "this"                          return 'THIS';
@@ -374,7 +371,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
                                                 //this.parseError("Invalid bitshift/template expression. Try grouping with parantheses",{text:yytext,token:'',line:yylineno})
                                                 test1 = false;
                                                 this.unput(r.substring(2,r.length));
-                                                return 'LSHIFT';
+                                                return 'OP_LEFT_SHIFT';
                                                 break;
                                             } else {
                                                 test1 = true;
