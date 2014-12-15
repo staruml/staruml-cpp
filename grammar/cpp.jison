@@ -1,7 +1,7 @@
 
 %token IDENTIFIER 
 
-%token ABSTRACT AS BASE BOOL BREAK BYTE CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT IN INT INTERFACE INTERNAL IS LOCK LONG NAMESPACE NEW NULL OBJECT OPERATOR OUT OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY REF RETURN SBYTE SEALED SHORT SIZEOF STACKALLOC STATIC STRING STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
+%token ABSTRACT AS BASE BOOL BREAK BYTE CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT   INT INTERFACE INTERNAL IS LOCK LONG NAMESPACE NEW NULL OBJECT OPERATOR  OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY RETURN SBYTE SEALED SHORT SIZEOF STACKALLOC STATIC STRING STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
 
 %token ASSEMBLY MODULE FIELD METHOD PARAM PROPERTY TYPE
  
@@ -196,21 +196,15 @@ type
     |   UNSIGNED  type
     |   UNSIGNED
     |   INLINE   
+    |   INLINE   STRUCT  type
     |   type   CONST
-    |   CONST   type
-    |   STRUCT  type
+    |   CONST   type 
     |   STATIC  type
+    |   type   CARET 
     ;
     
 type-with-interr
-    :   type    INTERR
-    {
-        $$ = $1 + "" + $2;
-    }
-    |   type
-    {
-        $$ = $1;
-    }
+    :   type     
     ;
 
 non-array-type
@@ -303,18 +297,12 @@ argument-list
     ;
     
 argument
-    :   expression
+    :   STRUCT  expression
+    |   expression
     {
         $$ = $1;
     }
-    |   REF  variable-reference
-    {
-        $$ = $1 + " " + $2;
-    }
-    |   OUT  variable-reference
-    {
-        $$ = $1 + " " + $2;
-    }
+    |   argument    local-rank-specifiers
     ;
      
 
@@ -333,8 +321,12 @@ primary-no-array-creation-expression
     :   literal
     {
         $$ = $1;
-    }
+    } 
     |   IDENTIFIER_WITH_KEYWORD
+    {
+        $$ = $1;
+    }
+    |   element-access
     {
         $$ = $1;
     }
@@ -362,10 +354,7 @@ primary-no-array-creation-expression
     {
         $$ = $1;
     }
-    |   element-access
-    {
-        $$ = $1;
-    }
+    
     |   this-access
     {
         $$ = $1;
@@ -488,9 +477,30 @@ delegate-expression
     }
     ;
      
+ 
     
 cast-expression
-    :   OPEN_PARENS   type  expression   CLOSE_PARENS   OP_DBLPTR   expression    block
+    :   OPEN_PARENS   STRUCT   type  expression   CLOSE_PARENS   OP_DBLPTR   expression    block
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
+    }
+    |   OPEN_PARENS   STRUCT   expression   CLOSE_PARENS   OP_DBLPTR   expression    block
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
+    }
+    |   OPEN_PARENS   STRUCT   expression   CLOSE_PARENS   OP_DBLPTR   expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
+    |   OPEN_PARENS   STRUCT   expression   CLOSE_PARENS   expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
+    |   OPEN_PARENS   STRUCT   type-with-interr     CLOSE_PARENS   expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
+    |   OPEN_PARENS   type  expression   CLOSE_PARENS   OP_DBLPTR   expression    block
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     }
@@ -530,10 +540,6 @@ double-colon-access
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    |   IDENTIFIER_WITH_TEMPLATE  DOUBLE_COLON  invocation-expression
-    {
-        $$ = $1 + "" + $2 + "" + $3;
-    }
     ;
 
 member-access
@@ -548,7 +554,7 @@ member-access
     |   type   DOT   IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
-    }
+    } 
     |   invocation-expressions     ptr-with-star     IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "" + $2 + "" + $3;
@@ -561,6 +567,7 @@ member-access
     {
         $$ = $1 + "" + $2 + "" + $3;
     } 
+    
     ; 
     
 ptr-with-star
@@ -575,6 +582,7 @@ keyword-invocation
 
 invocation-expression
     :   DOUBLE_COLON    invocation-expression
+    |   primary-expression   DOUBLE_COLON   invocation-expression
     |   primary-expression   OPEN_PARENS   type-name   CLOSE_PARENS   
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
@@ -591,6 +599,10 @@ invocation-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
+    |   member-name-with-double-colon    OPEN_PARENS   type-name   CLOSE_PARENS   
+    |   member-name-with-double-colon    OPEN_PARENS   type   CLOSE_PARENS   
+    |   member-name-with-double-colon    OPEN_PARENS   argument-list   CLOSE_PARENS  
+    |   member-name-with-double-colon    OPEN_PARENS   CLOSE_PARENS
     
     ;
     
@@ -610,7 +622,8 @@ element-access
     ;
 
 expression-list
-    :   expression
+    :   STRUCT   expression
+    |   expression
     {
         $$ = $1;
     }
@@ -840,10 +853,8 @@ typeof-expression
     ;
 
 sizeof-expression
-    :   SIZEOF   OPEN_PARENS   type-with-interr   CLOSE_PARENS
-    {
-        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
-    }
+    :   SIZEOF   OPEN_PARENS   STARS   type-with-interr   CLOSE_PARENS
+    |   SIZEOF   OPEN_PARENS   type-with-interr   CLOSE_PARENS  
     ;
 
 
@@ -871,10 +882,6 @@ unary-expression
         $$ = $1;
     }
     |   PLUS    unary-expression
-    {
-        $$ = $1 + "" + $2;
-    }
-    |   OP_PTR  unary-expression
     {
         $$ = $1 + "" + $2;
     }
@@ -1129,7 +1136,7 @@ assignment
     |   unary-expression   assignment-operator   block-expression-with-brace
     {
         $$ = $1 + "" + $2 + "" + $3;
-    } 
+    }  
     ;
 
 block-expression
@@ -1191,11 +1198,8 @@ expression
     :   conditional-expression
     {
         $$ = $1;
-    }
+    } 
     |   assignment
-    {
-        $$ = $1;
-    }
     ;
     
 constant-expression
@@ -1227,6 +1231,7 @@ embedded-statement
     |   empty-statement
     |   statement-expression block
     |   statement-expression SEMICOLON
+    |   statement-expression local-rank-specifiers ASSIGN variable-initializer SEMICOLON
     |   selection-statement
     |   iteration-statement
     |   jump-statement
@@ -1279,9 +1284,9 @@ declaration-statement
     ;
     
 local-variable-declaration
-    :   primary-expression   local-variable-declarators
-    |   fixed-parameter-prefix   type   local-variable-declarators
+    :   fixed-parameter-prefix   type   local-variable-declarators
     |   type   local-variable-declarators
+    |   primary-expression   local-variable-declarators
     ;
 
 local-variable-declarators
@@ -1308,12 +1313,12 @@ local-rank-specifier
 
     
 local-variable
-    :   %empty 
-    |   INTERR  IDENTIFIER_WITH_KEYWORD
+    :   INTERR  IDENTIFIER_WITH_KEYWORD
     |   STARS   IDENTIFIER_WITH_KEYWORD  
     |   AMP   IDENTIFIER_WITH_KEYWORD  
     |   IDENTIFIER_WITH_KEYWORD    local-rank-specifiers 
-    |   IDENTIFIER_WITH_KEYWORD
+    |   IDENTIFIER_WITH_KEYWORD 
+    |   %empty
     ;
     
 local-variable-declarator
@@ -1327,7 +1332,7 @@ local-variable-initializer
     ;
 
 local-constant-declaration
-    :   CONST   type   constant-declarators
+    :    type   constant-declarators
     ;
     
 constant-declarators
@@ -1342,13 +1347,13 @@ constant-declarator
  
     
 statement-expression
-    :   invocation-expressions
-    |   object-creation-expression
-    |   assignment      
+    :   object-creation-expression
     |   post-increment-expression
     |   post-decrement-expression
     |   pre-increment-expression
     |   pre-decrement-expression
+    |   assignment 
+    |   invocation-expressions
     ;
     
 selection-statement
@@ -1357,8 +1362,8 @@ selection-statement
     ;
     
 if-statement
-    :   IF   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-statement
-    |   IF   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-statement   ELSE   embedded-statement
+    :   IF   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-or-statement
+    |   IF   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-or-statement   ELSE   embedded-statement
     ;
     
 boolean-expression
@@ -1396,28 +1401,32 @@ switch-label
 iteration-statement
     :   while-statement
     |   do-statement
-    |   for-statement
-    |   foreach-statement
+    |   for-statement 
+    ;
+    
+embedded-or-statement
+    :   statement
+    |   embedded-statement
     ;
     
 while-statement
-    :   WHILE   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-statement
+    :   WHILE   OPEN_PARENS   boolean-expression   CLOSE_PARENS   embedded-or-statement
     ;
     
 do-statement
-    :   DO   embedded-statement   WHILE   OPEN_PARENS   boolean-expression   CLOSE_PARENS   SEMICOLON
+    :   DO   embedded-or-statement   WHILE   OPEN_PARENS   boolean-expression   CLOSE_PARENS   SEMICOLON
     ;
 
 for-statement
-    :   FOR   OPEN_PARENS   SEMICOLON   SEMICOLON   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   SEMICOLON   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   SEMICOLON   for-condition   SEMICOLON   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   SEMICOLON   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   for-condition   SEMICOLON   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-statement
-    |   FOR   OPEN_PARENS   for-initializer   COLON   expression   CLOSE_PARENS    embedded-statement
+    :   FOR   OPEN_PARENS   SEMICOLON   SEMICOLON   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   SEMICOLON   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   SEMICOLON   for-condition   SEMICOLON   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   SEMICOLON   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   for-condition   SEMICOLON   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   for-initializer   SEMICOLON   for-condition   SEMICOLON   for-iterator   CLOSE_PARENS   embedded-or-statement
+    |   FOR   OPEN_PARENS   for-initializer   COLON   expression   CLOSE_PARENS    embedded-or-statement
     ;
 
 for-initializer
@@ -1437,10 +1446,7 @@ statement-expression-list
     :   statement-expression
     |   statement-expression-list   COMMA   statement-expression
     ;
-
-foreach-statement
-    :   FOREACH   OPEN_PARENS   type   IDENTIFIER_WITH_KEYWORD   IN   expression   CLOSE_PARENS   embedded-statement
-    ;
+ 
     
 jump-statement
     :   break-statement
@@ -1518,11 +1524,11 @@ unchecked-statement
     ;
     
 lock-statement
-    :   LOCK   OPEN_PARENS   expression   CLOSE_PARENS   embedded-statement
+    :   LOCK   OPEN_PARENS   expression   CLOSE_PARENS   embedded-or-statement
     ;
     
 using-statement
-    :   USING   OPEN_PARENS    resource-acquisition   CLOSE_PARENS    embedded-statement
+    :   USING   OPEN_PARENS    resource-acquisition   CLOSE_PARENS    embedded-or-statement
     ;
     
 resource-acquisition
@@ -2110,7 +2116,9 @@ interface-indexer-declaration
 
 /* C.2.8 Structs */
 struct-declaration 
-    :   STRUCT   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    :   STRUCT   struct-body
+    |   STRUCT   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    |   STRUCT   type   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE    struct-body     
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE     struct-body   SEMICOLON
     |   STRUCT   IDENTIFIER_WITH_TEMPLATE   struct-interfaces    struct-body 
@@ -2208,8 +2216,11 @@ block_or_statement
 namespace-declaration
     :   NAMESPACE   namespace-or-type-name   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
     |   NAMESPACE   namespace-or-type-name   OPEN_BRACE   CLOSE_BRACE
-    |    NAMESPACE   INTERNAL   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    |   NAMESPACE   INTERNAL   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
     |   NAMESPACE   INTERNAL   OPEN_BRACE   CLOSE_BRACE
+    |   NAMESPACE   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    |   NAMESPACE   OPEN_BRACE    CLOSE_BRACE 
+    |   namespace-declaration    SEMICOLON
     ;
  
 
@@ -2370,12 +2381,12 @@ modifiers
 class-key
     :   FRIEND  CLASS
     |   CLASS
-    |   STRUCT
     |   UNION
     ; 
     
 class-declaration 
-    :   class-key   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    :   class-key   class-body      SEMICOLON
+    |   class-key   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
     |   class-key   IDENTIFIER_WITH_TEMPLATE   class-body  
     |   class-key   IDENTIFIER_WITH_TEMPLATE   class-base      class-body   
     |   class-key   IDENTIFIER_WITH_TEMPLATE   class-body   SEMICOLON  
@@ -2478,15 +2489,15 @@ class-member-declaration
     |   using-directive
     |   constant-declaration
     |   FRIEND   CLASS   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
-    |   UNION   block   SEMICOLON
+    |   class-declaration
+    |   struct-declaration
+    |   enum-declaration
     ;
 
 
 constant-declaration
-    :   CONST   type-with-interr   constant-declarators   SEMICOLON 
-    |   attributes   CONST   type-with-interr   constant-declarators   SEMICOLON 
-    |   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON 
-    |   attributes   modifiers   CONST   type-with-interr   constant-declarators   SEMICOLON 
+    :   type-with-interr   constant-declarators   SEMICOLON  
+    |   modifiers   type-with-interr   constant-declarators   SEMICOLON  
     ;
  
 constant-declarators
@@ -2496,6 +2507,7 @@ constant-declarators
 
 constant-declarator
     :   IDENTIFIER_WITH_TEMPLATE   ASSIGN   constant-expression 
+    |   IDENTIFIER_WITH_TEMPLATE
     ;
 
 field-declaration
@@ -2559,7 +2571,9 @@ member-name-with-double-colon-list
     ;
     
 member-name-with-double-colon-literal
-    :   expression
+    :   STRUCT   expression
+    |`  expression
+    |   member-name-with-double-colon-literal   local-rank-specifiers
     ; 
     
 class-method-declaration
@@ -2589,8 +2603,7 @@ method-prefix
 class-method-header  
     :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
     |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
-    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
-    |   CONST   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
+    |   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS          
     |   attributes   type    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS      
     |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS 
     |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS      
@@ -2600,6 +2613,9 @@ class-method-header
     |   attributes   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
     |   member-name-with-double-colon
     |   class-method-header    IDENTIFIER
+    |   class-method-header      ASSIGN   variable-initializer 
+    
+    |   class-method-header    CONST    ASSIGN   variable-initializer 
     ;
      
 
@@ -2678,30 +2694,27 @@ IDENTIFIER_WITH_KEYWORD
     |   STRING
     |   DOTS
     |   OBJECT  
+    |   DELEGATE
     |   literal
     ;
 
 fixed-parameter
     :   type-with-interr   IDENTIFIER_WITH_KEYWORD     ASSIGN     expression  
+    |   STRUCT   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    |   STRUCT   type-with-interr  
     |   type-with-interr   IDENTIFIER_WITH_KEYWORD  
     |   type-with-interr   
     |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD  ASSIGN   expression  
     |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD     
-    |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD 
-    |   attributes   type-with-interr   IDENTIFIER_WITH_KEYWORD 
-    |   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
-    |   attributes   parameter-modifier   type-with-interr   IDENTIFIER_WITH_KEYWORD 
+    |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD  
+    |   fixed-parameter    local-rank-specifiers
     ;
 
 fixed-parameter-prefix
-    :   CONST
-    |   UNSIGNED
+    :   UNSIGNED
     ;
 
-parameter-modifier
-    :   REF
-    |   OUT
-    ;
+ 
 
 parameter-array
     :   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE 
@@ -2827,22 +2840,19 @@ static-constructor-declaration
  
 
 destructor-declaration
-    :   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   modifiers   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   modifiers   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    method-body 
-    |   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   modifiers   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   modifiers   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   attributes   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
-    |   attributes   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    method-body 
+    :   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    |   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    ;
+ 
+ destructor-method-body
+    :   method-body
+    |   ASSIGN   variable-initializer   SEMICOLON
     ;
  
  

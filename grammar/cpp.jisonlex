@@ -63,7 +63,7 @@ Unicode_escape_sequence         '\\u' {HEX_DIGIT}{4}|'\\U' {HEX_DIGIT}{8}
 
 
 
-Template                        [<][^=;\|\+\-\"\'\{\\}:]*[>]+
+Template                        [<][^=;\|\+\-\"\'\{\\}]*[>]+
 
 /* Identifiers  */
 IDENTIFIER                      ({Available_identifier}|'@'{Identifier_or_keyword}) 
@@ -215,8 +215,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "foreach"                       return 'FOREACH';
 "goto"                          return 'GOTO';
 "if"                            return 'IF';
-"implicit"                      return 'IMPLICIT';
-"in"                            return 'IN';
+"implicit"                      return 'IMPLICIT'; 
 "int"                           return 'INT';
 "interface"                     return 'INTERFACE';
 "internal"                      return 'INTERNAL';
@@ -227,15 +226,13 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "new"                           return 'NEW';
 "null"                          return 'NULL';
 "object"                        return 'OBJECT';
-"operator"                      return 'OPERATOR';
-"out"                           return 'OUT';
+"operator"                      return 'OPERATOR'; 
 "override"                      return 'OVERRIDE';
 "params"                        return 'PARAMS';
 "private"                       return 'PRIVATE';
 "protected"                     return 'PROTECTED';
 "public"                        return 'PUBLIC';
-"readonly"                      return 'READONLY';
-"ref"                           return 'REF';
+"readonly"                      return 'READONLY'; 
 "return"                        return 'RETURN';
 "sbyte"                         return 'SBYTE';
 "sealed"                        return 'SEALED';
