@@ -216,10 +216,10 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "goto"                          return 'GOTO';
 "if"                            return 'IF';
 "implicit"                      return 'IMPLICIT';  
+"int"                           return 'INT';
 "interface"                     return 'INTERFACE';
 "internal"                      return 'INTERNAL';
-"is"                            return 'IS';
-"lock"                          return 'LOCK';
+"is"                            return 'IS'; 
 "long"                          return 'LONG';
 "namespace"                     return 'NAMESPACE';
 "new"                           return 'NEW';
@@ -232,8 +232,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "public"                        return 'PUBLIC';
 "readonly"                      return 'READONLY'; 
 "return"                        return 'RETURN';
-"sbyte"                         return 'SBYTE';
-"sealed"                        return 'SEALED';
+"sbyte"                         return 'SBYTE'; 
 "short"                         return 'SHORT';
 "sizeof"                        return 'SIZEOF';
 "stackalloc"                    return 'STACKALLOC';
@@ -292,6 +291,8 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "union"                         return 'UNION';
 
 "asm"                           return 'ASM';
+
+"ref"                           return 'REF';
 
 {Unicode_escape_sequence}       return 'Unicode_escape_sequence';
  
