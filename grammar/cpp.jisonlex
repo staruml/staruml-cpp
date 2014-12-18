@@ -93,7 +93,7 @@ Formatting_character            {UNICODE_CLASS_Cf}
 
 
 /* Real Literals */
-REAL_LITERAL                    {Decimal_digits}{DOT}{Decimal_digits}{Exponent_part}?{Real_type_suffix}?|{DOT}{Decimal_digits}{Exponent_part}?{Real_type_suffix}?|{Decimal_digits}{Exponent_part}{Real_type_suffix}?|{Decimal_digits}{Real_type_suffix}
+REAL_LITERAL                    {Decimal_digits}{DOT}{Decimal_digits}?{Exponent_part}?{Real_type_suffix}?|{DOT}{Decimal_digits}{Exponent_part}?{Real_type_suffix}?|{Decimal_digits}{Exponent_part}{Real_type_suffix}?|{Decimal_digits}{Real_type_suffix}
 Exponent_part                   'e'{Sign}?{Decimal_digits}|'E'{Sign}?{Decimal_digits}
 Sign                            '+'|'-'
 Real_type_suffix                'F'|'f'|'L'|'l'
@@ -186,11 +186,9 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 
 /* Keywords */
 "abstract"                      return 'ABSTRACT';
-"as"                            return 'AS';
-"base"                          return 'BASE';
+"as"                            return 'AS'; 
 "bool"                          return 'BOOL';
-"break"                         return 'BREAK';
-"byte"                          return 'BYTE';
+"break"                         return 'BREAK'; 
 "case"                          return 'CASE';
 "catch"                         return 'CATCH';
 "char"                          return 'CHAR';
