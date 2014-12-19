@@ -215,8 +215,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 "implicit"                      return 'IMPLICIT';  
 "int"                           return 'INT';
 "interface"                     return 'INTERFACE';
-"internal"                      return 'INTERNAL';
-"is"                            return 'IS'; 
+"internal"                      return 'INTERNAL'; 
 "long"                          return 'LONG';
 "namespace"                     return 'NAMESPACE';
 "new"                           return 'NEW';
@@ -266,8 +265,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 
 "partial"                       return 'PARTIAL';
 "yield"                         return 'YIELD';
-
-"async"                         return 'ASYNC';
+ 
 "await"                         return 'AWAIT';
 
 "where"                         return 'WHERE';

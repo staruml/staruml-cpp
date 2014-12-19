@@ -1,7 +1,7 @@
 
 %token IDENTIFIER 
 
-%token ABSTRACT AS  BOOL BREAK  CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT   INT  INTERFACE INTERNAL IS  LONG NAMESPACE NEW NULL  OPERATOR  OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY RETURN SBYTE SHORT SIZEOF STACKALLOC STATIC  STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
+%token ABSTRACT AS  BOOL BREAK  CASE CATCH CHAR CHECKED CLASS CONST CONTINUE DECIMAL DEFAULT DELEGATE DO DOUBLE ELSE ENUM EXPLICIT EXTERN FALSE FINALLY FIXED FLOAT FOR FOREACH GOTO IF IMPLICIT   INT  INTERFACE INTERNAL   LONG NAMESPACE NEW NULL  OPERATOR  OVERRIDE PARAMS PRIVATE PROTECTED PUBLIC READONLY RETURN SBYTE SHORT SIZEOF STACKALLOC STATIC  STRUCT SWITCH THIS THROW TRUE TRY TYPEOF UINT ULONG UNCHECKED UNSAFE USHORT USING VIRTUAL VOID VOLATILE WHILE 
 
 %token ASSEMBLY MODULE FIELD METHOD PARAM PROPERTY TYPE
  
@@ -12,7 +12,7 @@
 
 %token TEMPLATE
 
-%token YIELD  ASYNC  AWAIT  WHERE
+%token YIELD    AWAIT  WHERE
 
 %token DELETE  FRIEND  TYPEDEF  AUTO   REGISTER   INLINE    SIGNED    UNSIGNED    UNION    ASM   DOTS   REF    
 
@@ -63,6 +63,10 @@ BOOLEAN_LITERAL
     |   FALSE
     ;
     
+string-list
+    :   string-list    STRING_LITERAL   
+    |   STRING_LITERAL
+    ;
 
 literal 
     :   BOOLEAN_LITERAL
@@ -77,10 +81,10 @@ literal
     {
         $$ = $1;
     }
-    |   STRING_LITERAL
+    |   string-list     
     {
         $$ = $1;
-    }
+    } 
     |   CHARACTER_LITERAL
     {
         $$ = $1;
@@ -259,6 +263,7 @@ non-array-type
     |   SIGNED  LONG  INT
     |   SIGNED  LONG  LONG
     |   SIGNED  IDENTIFIER
+    |   UNSIGNED
     |   UNSIGNED  INT
     |   UNSIGNED  CHAR
     |   UNSIGNED  LONG
@@ -1098,11 +1103,7 @@ relational-expression
     |   relational-expression   OP_COALESCING    shift-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
-    }
-    |   relational-expression   IS      type
-    {
-        $$ = $1 + "" + $2 + "" + $3;
-    }
+    } 
     |   relational-expression   AS      type
     {
         $$ = $1 + "" + $2 + "" + $3;
@@ -1371,6 +1372,8 @@ declaration-statement
 local-variable-declaration
     :   STATIC  CONST    STRUCT   struct-body    identifier-list    struct-bracket    
     |   STATIC  STRUCT  type  local-variable-declarators
+    |   STRUCT   OPEN_BRACE   struct-member-list   CLOSE_BRACE    identifier-list    struct-bracket 
+    |   STRUCT   OPEN_BRACE   CLOSE_BRACE    identifier-list    struct-bracket 
     |   STRUCT  type  local-variable-declarators
     |   CONST   STRUCT  type  local-variable-declarators 
     |   ENUM    OPEN_BRACE   enum-member-declarations   COMMA    CLOSE_BRACE
@@ -1674,7 +1677,7 @@ enum-declaration
     
 enum-class
     :   ENUM    class-key
-    |   ENUM
+    |   ENUM 
     ;
 
 enum-base
@@ -1728,7 +1731,8 @@ enum-member-declaration
 
  
 struct-bracket
-    :   local-rank-specifiers  ASSIGN    variable-initializer    
+    :   local-rank-specifiers  ASSIGN    variable-initializer   
+    |   local-rank-specifiers
     ;
 
 /* C.2.8 Structs */
@@ -1838,6 +1842,7 @@ struct-member-declaration
     {
         $$ = $1;
     }
+    |   SEMICOLON
     ;
 
 
@@ -1861,6 +1866,7 @@ block_or_statement
     |   struct-declaration 
     |   enum-declaration
     |   extern-declaration
+    |   SEMICOLON
     ;
 
 extern-declaration
@@ -1995,8 +2001,7 @@ type-declaration
 
  
 modifier
-    :   UNSAFE 
-    |   ASYNC
+    :   UNSAFE  
     |   PUBLIC
     |   PARTIAL
     |   PROTECTED 
@@ -2033,6 +2038,7 @@ class-key
     |   PUBLIC  REF     CLASS
     |   REF     CLASS
     |   CLASS
+    |   TYPEDEF  UNION
     |   UNION
     ; 
     
@@ -2151,6 +2157,7 @@ class-member-declaration
     {
         $$ = $1;
     }
+    |   SEMICOLON
     ;
 
 
@@ -2273,6 +2280,7 @@ method-prefixs
 
 method-prefix
     :   CONST   type
+    |   CONST   OVERRIDE
     |   CONST
     |   OVERRIDE
     ;
@@ -2384,8 +2392,7 @@ IDENTIFIER_WITH_KEYWORD
     |   MODULE 
     |   FIELD 
     |   TYPE
-    |   THIS
-    |   ASYNC
+    |   THIS 
     |   VOLATILE 
     |   DOTS   
     |   DELEGATE
