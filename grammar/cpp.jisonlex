@@ -181,8 +181,7 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 {SINGLE_LINE_DOC_COMMENT}       /* skip */ 
 {NEW_LINE}                      /* skip */
  
-
-{SINGLE_PREPROCESSING}          /* skip */
+ 
 
 /* Keywords */
 "abstract"                      return 'ABSTRACT';
@@ -349,6 +348,29 @@ SINGLE_PREPROCESSING            [#] {Input_characters}?
 ">>="                           return 'RIGHT_SHIFT_ASSIGNMENT';
 {DOT}                           return 'DOT'
 "..."                           return 'DOTS'
+
+{SINGLE_PREPROCESSING}          %{
+                                    var r = yytext;
+                                    //console.log('#1: '+r);
+                                    while(r[r.length-1]=='\\'){
+                                        yylloc.first_line++;
+                                        yylloc.last_line++; 
+                                        temp = '';
+                                        idx = 1;
+                                        nxtLine = this._input;
+                                        if(this._input[0]!='\n'){
+                                            idx=0;
+                                        }
+                                        while(this._input[idx]!='\n'){
+                                                temp= temp+this._input[idx];
+                                                idx++;
+                                            }
+                                        this._input = nxtLine.substring(idx);
+                                        r = temp; 
+                                        
+                                    }
+                                        
+                                %}
 
 {Template}                      %{
                                         //console.log(this.showPosition());
