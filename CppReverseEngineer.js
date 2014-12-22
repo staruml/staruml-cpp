@@ -169,7 +169,7 @@ define(function (require, exports, module) {
                                 results.push(property.toString() + ': ' + value);
                             }
                         }
-//                        console.log( JSON.stringify(ast) );  
+                        console.log( JSON.stringify(ast) );  
                         
 //                        self._currentCompilationUnit = ast;
 //                        self._currentCompilationUnit.file = file;

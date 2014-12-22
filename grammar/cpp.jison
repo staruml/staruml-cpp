@@ -65,7 +65,7 @@ BOOLEAN_LITERAL
     
 string-list
     :   string-list    STRING_LITERAL   
-    |   STRING_LITERAL
+    |   STRING_LITERAL 
     ;
 
 literal 
@@ -81,7 +81,7 @@ literal
     {
         $$ = $1;
     }
-    |   string-list     
+    |   STRING_LITERAL    
     {
         $$ = $1;
     } 
@@ -113,6 +113,9 @@ type-name
     
 namespace-or-type-name
     :   namespace-or-type-name   DOUBLE_COLON   STAR    IDENTIFIER_WITH_KEYWORD
+    {
+        $$ = $1 + "::*" + $3;
+    }
     |   namespace-or-type-name   DOUBLE_COLON   IDENTIFIER_WITH_KEYWORD
     {
         $$ = $1 + "::" + $3;
@@ -173,6 +176,9 @@ STARS
 
 type 
     :   type    TEMPLATE 
+    {
+        $$ = $1 + "" + $2;
+    }
     |   non-array-type    AMP
     {
         $$ = $1 + "" + $2;
@@ -214,63 +220,219 @@ type
         $$ = $1;
     }  
     |   type    STAR   AMP
+    {
+        $$ = $1 + "*&"; 
+    }
     |   TYPEDEF 
+    {
+        $$ = $1;
+    }   
     |   UNSIGNED  type
+    {
+        $$ = $1 + " "+ $2;
+    }
     |   UNSIGNED
-    |   INLINE   
+    {
+        $$ = $1;
+    }
+    |   INLINE  
+    {
+        $$ = $1;
+    }
     |   INLINE   STRUCT  type
+    {
+        $$ = "inline struct "+$3;
+    }
     |   type   CONST    STAR
+    {
+        $$ = $1 + " const*";
+    }   
     |   type   CONST    
-    |   CONST   type  
+    {
+        $$ + $1 + " const";
+    }
+    |   CONST   type 
+    {
+        $$ = "const "+$2;
+    }
     |   STATIC  type 
+    {
+        $$ = "static "+$2;
+    }
     |   VOLATILE  type
+    {
+        $$ = "volatile "+ $2;
+    }
     |   VIRTUAL   type
+    {
+        $$ = "virtual "+ $2;
+    }
     |   type    DOUBLE_COLON  STAR  type
+    {
+        $$ = $1 + "::*"+$4;
+    }
     |   type   DOUBLE_COLON   type
+    {
+        $$ = $1 + "::" + $3;
+    }
     |   FRIEND    CLASS
+    {
+        $$ = "friend class";
+    }
     |   FRIEND    type
+    {
+        $$ = "friend "+ $2;
+    }
     ;
     
 type-with-interr
     :   type     
+    {
+        $$ = $1;
+    }
     ;
 
 non-array-type
     :   type-name
-    |   SBYTE 
+    {
+        $$ = $1;
+    }   
+    |   SBYTE
+    {
+        $$ = $1;
+    }   
     |   SHORT
-    |   USHORT 
+    {
+        $$ = $1;
+    }   
+    |   USHORT
+    {
+        $$ = $1;
+    }   
     |   UINT
+    {
+        $$ = $1;
+    }   
     |   LONG
+    {
+        $$ = $1;
+    }   
     |   ULONG
+    {
+        $$ = $1;
+    }   
     |   CHAR
+    {
+        $$ = $1;
+    }   
     |   FLOAT
+    {
+        $$ = $1;
+    }   
     |   DOUBLE
+    {
+        $$ = $1;
+    }   
     |   DECIMAL
-    |   BOOL    
-    |   VOID 
+    {
+        $$ = $1;
+    }   
+    |   BOOL
+    {
+        $$ = $1;
+    }   
+    |   VOID
+    {
+        $$ = $1;
+    }   
     |   AUTO
+    {
+        $$ = $1;
+    }   
     |   INT
+    {
+        $$ = $1;
+    }   
     |   SHORT INT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   LONG  INT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   LONG  LONG
+    {
+        $$ = $1 + " "+$2;
+    }
     |   LONG    DOUBLE
+    {
+        $$ = $1 + " "+$2;
+    }
     |   SIGNED  INT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   SIGNED  CHAR
+    {
+        $$ = $1 + " "+$2;
+    }
     |   SIGNED  LONG
+    {
+        $$ = $1 + " "+$2;
+    }
     |   SIGNED  SHORT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   SIGNED  SHORT INT
+    {
+        $$ = $1 + " "+$2+ " "+$3;;
+    }
     |   SIGNED  LONG  INT
+    {
+        $$ = $1 + " "+$2+ " "+$3;
+    }
     |   SIGNED  LONG  LONG
+    {
+        $$ = $1 + " "+$2+ " "+$3;;
+    }
     |   SIGNED  IDENTIFIER
+    {
+        $$ = $1 + " "+$2;
+    }
     |   UNSIGNED
+    {
+        $$ = $1;
+    }   
     |   UNSIGNED  INT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   UNSIGNED  CHAR
+    {
+        $$ = $1 + " "+$2;
+    }
     |   UNSIGNED  LONG
+    {
+        $$ = $1 + " "+$2;
+    }
     |   UNSIGNED  SHORT
+    {
+        $$ = $1 + " "+$2;
+    }
     |   UNSIGNED  SHORT INT
+    {
+        $$ = $1 + " "+$2+ " "+$3;;
+    }
     |   UNSIGNED  LONG  INT
+    {
+        $$ = $1 + " "+$2+ " "+$3;;
+    }
     |   UNSIGNED  LONG  LONG
+    {
+        $$ = $1 + " "+$2+ " "+$3;;
+    }
     ;
     
 array-type
@@ -332,6 +494,9 @@ argument-list
         $$ = $1 + "" + $2 + "" + $3;
     }
     |   argument-list   COMMA   STAR   argument
+    {
+        $$ = $1 + ", *" + $4;
+    }
     |   argument-list   COMMA   argument
     {
         $$ = $1 + "" + $2 + "" + $3;
@@ -344,13 +509,25 @@ argument-list
     
 argument
     :   CONST   STRUCT   expression
+    {
+        $$ = "const struct "+$3;
+    }
     |   STRUCT  expression
+    {
+        $$ = "struct "+$2;
+    }   
     |   expression
     {
         $$ = $1;
     }
     |   argument    local-rank-specifiers
+    {
+        $$ = $1 + $2;
+    }   
     |   type
+    {
+        $$ = $1;
+    }   
     ;
      
 
@@ -367,6 +544,9 @@ primary-expression
 
 primary-no-array-creation-expression
     :   lambda-expression
+    {
+        $$ = $1;
+    }   
     |   cast-expression     
     {
         $$ = $1;
@@ -387,7 +567,6 @@ primary-no-array-creation-expression
     {
         $$ = $1;
     }
-    
     |   this-access
     {
         $$ = $1;
@@ -428,7 +607,6 @@ primary-no-array-creation-expression
     {
         $$ = $1 + "" + $2 + "" + $3;
     }
-    
     |   DELEGATE block
     {
         $$ = $1 + "" + $2;
@@ -436,9 +614,11 @@ primary-no-array-creation-expression
     |   delegate-expression 
     {
         $$ = $1;
+    } 
+    |   deallocation-expression
+    {
+        $$ = $1;
     }
-    
-    |   deallocation-expression 
     |   literal
     {
         $$ = $1;
@@ -448,7 +628,13 @@ primary-no-array-creation-expression
         $$ = $1;
     }
     |   DOUBLE_COLON   STAR    IDENTIFIER_WITH_KEYWORD
+    {
+        $$ = "::*" + $3;
+    }
     |   DOUBLE_COLON   IDENTIFIER_WITH_KEYWORD
+    {
+        $$ = "::" + $2;
+    }
     |   element-access
     {
         $$ = $1;
@@ -552,8 +738,17 @@ cast-expression
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
     }
     |   OPEN_PARENS   expression-list   CLOSE_PARENS   expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   OPEN_PARENS   expression-list   CLOSE_PARENS  
+    {
+        $$ = $1 + "" + $2 + "" +$3 ;
+    }
     |   type  cast-expression
+    {
+        $$ = $1 + "" + $2;
+    }
     ;
      
     
@@ -605,17 +800,26 @@ member-access
     
 ptr-with-star
     :   OP_PTR   STAR
+    {
+        $$ = $1 + ""+ $2;
+    }
     |   OP_PTR
+    {
+        $$ = $1;
+    }
     ;
-
-keyword-invocation
-    :   DEFAULT
-    ;
+ 
 
 
 invocation-expression
     :   DOUBLE_COLON    invocation-expression
+    {
+        $$ = $1 + "" +$2;
+    }
     |   primary-expression   DOUBLE_COLON   invocation-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   primary-expression   OPEN_PARENS   type-name   CLOSE_PARENS   
     {
         $$ = $1 + "" + $2 + "" + $3 + "" + $4;
@@ -633,11 +837,25 @@ invocation-expression
         $$ = $1 + "" + $2 + "" + $3;
     }
     |   member-name-with-double-colon    OPEN_PARENS   type-name   CLOSE_PARENS   
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   member-name-with-double-colon    OPEN_PARENS   type   CLOSE_PARENS   
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   member-name-with-double-colon    OPEN_PARENS   argument-list   CLOSE_PARENS  
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   member-name-with-double-colon    OPEN_PARENS   CLOSE_PARENS
-    
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   invocation-expression   assignment-operator   variable-initializer
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     ;
     
 element-access
@@ -657,6 +875,9 @@ element-access
 
 expression-list
     :   STRUCT   expression
+    {
+        $$ = $1 + "" + $2;
+    }
     |   expression
     {
         $$ = $1;
@@ -669,6 +890,9 @@ expression-list
 
 this-access
     :   THIS
+    {
+        $$ = $1;
+    }
     ;
     
 
@@ -689,8 +913,13 @@ post-decrement-expression
     
 type-with-identifier
     :   OPEN_PARENS   type-with-identifier   CLOSE_PARENS   type-with-identifier
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   OPEN_PARENS   type-with-identifier   CLOSE_PARENS  
-    
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   IDENTIFIER  TEMPLATE  
     {
         $$ = $1 + "" + $2;
@@ -703,9 +932,21 @@ type-with-identifier
     
 new-unsigned
     :   NEW   UNSIGNED
+    {
+        $$ = $1 + " " + $2;
+    }
     |   NEW   STRUCT
+    {
+        $$ = $1 + " " + $2;
+    }
     |   REF   NEW
+    {
+        $$ = $1 + " " + $2;
+    }
     |   NEW
+    {
+        $$ = $1;
+    }
     ;
     
 object-creation-expression
@@ -734,22 +975,28 @@ object-creation-expression
         $$ = $1 + " " + $2 + "" + $3;
     }
     |   new-unsigned   non-array-type   STAR   rank-specifiers
-    |   new-unsigned   non-array-type   STAR   rank-specifiers     block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
+    |   new-unsigned   non-array-type   STAR   rank-specifiers     block-expression-with-brace
+    {
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   new-unsigned   non-array-type   rank-specifiers
+    {
+        $$ = $1 + " " + $2 + "" + $3 ;
+    }
     |   new-unsigned   non-array-type   rank-specifiers     block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3 + "" + $4;
     }
     |   new-unsigned   non-array-type   STAR    OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     }
     |   new-unsigned   non-array-type   STAR    OPEN_BRACKET   argument-list   CLOSE_BRACKET    
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
     }
     |   new-unsigned   non-array-type   OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
     {
@@ -761,15 +1008,15 @@ object-creation-expression
     }
     |   new-unsigned   type-with-identifier   STAR    rank-specifiers    block-expression-with-brace 
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
     }
     |   new-unsigned   type-with-identifier   STAR    OPEN_BRACKET   argument-list   CLOSE_BRACKET    block-expression-with-brace
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     }
     |   new-unsigned   type-with-identifier   STAR    OPEN_BRACKET   argument-list   CLOSE_BRACKET     
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6;
     }
     
     
@@ -783,11 +1030,12 @@ object-creation-expression
     }
     |   new-unsigned   type-with-identifier   OPEN_BRACKET   argument-list   CLOSE_BRACKET     
     {
-        $$ = $1 + " " + $2 + "" + $3 + "" + $4;
+        $$ = $1 + " " + $2 + "" + $3 + "" + $4 + "" + $5;
     }
-    
-    
     |   new-unsigned   type-with-identifier
+    {
+        $$ = $1 + " " + $2;
+    }
     |   new-unsigned   STAR    rank-specifiers   block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3;
@@ -796,7 +1044,6 @@ object-creation-expression
     {
         $$ = $1 + " " + $2;
     }
-    
     |   new-unsigned   rank-specifiers   block-expression-with-brace
     {
         $$ = $1 + " " + $2 + "" + $3;
@@ -805,8 +1052,6 @@ object-creation-expression
     {
         $$ = $1 + " " + $2;
     }
-    
-    
     |   new-unsigned   block-expression-with-brace
     {
         $$ = $1 + " " + $2;
@@ -910,6 +1155,9 @@ delegate-creation-expression
         $$ = $1 + " " + $2 + "" + $3;
     }
     |   REF    delegate-creation-expression
+    {
+        $$ = $1 + " "+ $2;
+    }
     ;
     
 
@@ -922,9 +1170,21 @@ typeof-expression
 
 sizeof-expression
     :   SIZEOF   OPEN_PARENS   STARS   type-with-interr   CLOSE_PARENS
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   SIZEOF   OPEN_PARENS   STRUCT   type-with-interr   CLOSE_PARENS  
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   SIZEOF   OPEN_PARENS   type-with-interr   CLOSE_PARENS  
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   SIZEOF   type-with-interr
+    {
+        $$ = $1 + "" + $2 ;
+    }
     ;
 
 
@@ -976,6 +1236,9 @@ unary-expression
         $$ = $1 + "" + $2;
     }
     |   CARET    unary-expression
+    {
+        $$ = $1 + "" + $2;
+    }   
     |   primary-expression  
     {
         $$ = $1;
@@ -984,14 +1247,32 @@ unary-expression
 
 unary-or-cast-expression
     :   unary-expression
+    {
+        $$ = $1;
+    }   
     |   OPEN_PARENS  type-name  CLOSE_PARENS  cast-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     ;
 
 deallocation-expression
     :   DOUBLE_COLON     DELETE    unary-or-cast-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   DELETE      unary-or-cast-expression
+    {
+        $$ = $1 + "" + $2;
+    }
     |   DOUBLE_COLON     DELETE   OPEN_BRACKET     CLOSE_BRACKET    unary-or-cast-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   DELETE     OPEN_BRACKET     CLOSE_BRACKET    unary-or-cast-expression
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     ;
 
 pre-increment-expression
@@ -1195,15 +1476,15 @@ conditional-expression
     } 
     |   conditional-or-expression   INTERR   OPEN_PARENS   expression    CLOSE_PARENS
     {
-        $$ = $1 + "" + $2 + "" + $3;
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4+ "" + $5;
     }  
     |   conditional-or-expression   INTERR   OPEN_PARENS  expression     CLOSE_PARENS    COLON     expression  
     {
-        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7;
     } 
     |   conditional-or-expression   INTERR   OPEN_PARENS  expression     CLOSE_PARENS    COLON   OPEN_PARENS  expression       CLOSE_PARENS
     {
-        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5 + "" + $6 + "" + $7 + "" + $8 + "" + $9;
     } 
     ;
     
@@ -1261,16 +1542,49 @@ block-expression-with-brace
     
 assignment-operator
     :   ASSIGN
+    {
+         $$ = $1;
+    }
     |   OP_ADD_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_SUB_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_MULT_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_DIV_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_MOD_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_AND_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_OR_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_XOR_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   OP_LEFT_SHIFT_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     |   RIGHT_SHIFT_ASSIGNMENT
+    {
+         $$ = $1;
+    }
     ;
     
 expression
@@ -1279,6 +1593,9 @@ expression
         $$ = $1;
     } 
     |   assignment
+    {
+         $$ = $1;
+    }
     ;
     
 constant-expression
@@ -1300,9 +1617,21 @@ boolean-expression
 /* C.2.5 Statements */
 statement
     :   labeled-statement
+    {
+         $$ = $1;
+    }
     |   declaration-statement
+    {
+         $$ = $1;
+    }
     |   embedded-statement  
+    {
+         $$ = $1;
+    }
     |   using-directive 
+    {
+         $$ = $1;
+    }
     ;
      
      
@@ -1661,18 +1990,114 @@ variable-initializer
 /* C.2.11 Enums */
 enum-declaration
     :   enum-class   enum-body
+    {
+        $$ = {
+            "node": "enum",
+            "body": $2
+        };
+    }
     |   enum-class   enum-body    SEMICOLON
+    {
+        $$ = {
+            "node": "enum",
+            "body": $2
+        };
+    }
     |   modifiers  enum-class   enum-body
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "body": $3
+        };
+    }
     |   modifiers  enum-class   enum-body  SEMICOLON
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "body": $3
+        };
+    }
     |   enum-class   member-name-with-double-colon   SEMICOLON
+    {
+        $$ = {
+            "node": "enum", 
+            "name": $2
+        };
+    }
     |   enum-class   member-name-with-double-colon   enum-body  
-    |   modifiers   enum-class   member-name-with-double-colon   enum-body 
-    |   enum-class   member-name-with-double-colon   enum-base   enum-body    
+    {
+        $$ = {
+            "node": "enum", 
+            "name": $2,
+            "body": $3
+        };
+    }
+    |   modifiers   enum-class   member-name-with-double-colon   enum-body
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "name": $3,
+            "body": $4
+        };
+    }
+    |   enum-class   member-name-with-double-colon   enum-base   enum-body
+    {
+        $$ = {
+            "node": "enum", 
+            "name": $2,
+            "base": $3,
+            "body": $4
+        };
+    }
     |   enum-class   member-name-with-double-colon   enum-body   SEMICOLON  
-    |   modifiers   enum-class   member-name-with-double-colon   enum-base   enum-body   
+    {
+        $$ = {
+            "node": "enum", 
+            "name": $2,
+            "body": $3
+        };
+    }
+    |   modifiers   enum-class   member-name-with-double-colon   enum-base   enum-body  
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "name": $3,
+            "base": $4,
+            "body": $5
+        };
+    }
     |   modifiers   enum-class   member-name-with-double-colon   enum-body   SEMICOLON 
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "name": $3,
+            "body": $4
+        };
+    }
     |   enum-class   member-name-with-double-colon   enum-base   enum-body   SEMICOLON 
-    |   modifiers   enum-class   member-name-with-double-colon   enum-base   enum-body   SEMICOLON   
+    {
+        $$ = {
+            "node": "enum", 
+            "name": $2,
+            "base": $3,
+            "body": $4
+        };
+    }
+    |   modifiers   enum-class   member-name-with-double-colon   enum-base   enum-body   SEMICOLON
+    {
+        $$ = {
+            "node": "enum",
+            "modifiers": $1,
+            "name": $3,
+            "base": $4,
+            "body": $5
+        };
+    }
     ;
     
 enum-class
@@ -1738,43 +2163,321 @@ struct-bracket
 /* C.2.8 Structs */
 struct-declaration 
     :   STRUCT   struct-body    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "body": $2
+        };
+    }
     |   STRUCT   struct-body
+    {
+        $$ = {
+            "node": "struct",
+            "body": $2
+        };
+    }
     |   STRUCT   member-name-with-double-colon     OPEN_PARENS   CLOSE_PARENS    struct-method-body
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2 
+        };
+    }
     |   STRUCT   member-name-with-double-colon     OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    struct-method-body
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2,
+            "parameter": $4 
+        };
+    }
     |   STRUCT   type   member-name-with-double-colon    OPEN_PARENS   CLOSE_PARENS        struct-method-body
-    |   STRUCT   type   member-name-with-double-colon    OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    struct-method-body    
+    {
+        $$ = {
+            "node": "struct",
+            "name": $3 
+        };
+    }
+    |   STRUCT   type   member-name-with-double-colon    OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    struct-method-body   
+    {
+        $$ = {
+            "node": "struct",
+            "name": $3,
+            "parameter": $5 
+        };
+    }
     |   STRUCT   member-name-with-double-colon   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2 
+        };
+    }
     |   STRUCT   type   member-name-with-double-colon   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $3 
+        };
+    }
     |   STRUCT   member-name-with-double-colon    struct-body     
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2, 
+            "body": $3
+        };
+    }
     |   STRUCT   member-name-with-double-colon     struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2, 
+            "body": $3
+        };
+    }
     |   STRUCT   member-name-with-double-colon     struct-body   IDENTIFIER_WITH_TEMPLATE    struct-bracket   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2,
+            "body": $3
+        };
+    }
     |   STRUCT   member-name-with-double-colon     struct-body   IDENTIFIER_WITH_TEMPLATE    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2, 
+            "body": $3
+        };
+    }
     |   STRUCT   member-name-with-double-colon   struct-interfaces    struct-body 
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2,
+            "base": $3,
+            "body": $4
+        };
+    }
     |   STRUCT   member-name-with-double-colon   struct-interfaces    struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "name": $2,
+            "base": $3,
+            "body": $4
+        };
+    }
     |   modifiers   STRUCT   struct-body
+    {
+        $$ = {
+            "node": "struct", 
+            "modifiers": $1,
+            "body": $4
+        };
+    }
     |   modifiers   STRUCT   struct-body    IDENTIFIER_WITH_TEMPLATE    struct-bracket   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "body": $3,
+            "name": $4
+        };
+    }
     |   modifiers   STRUCT   struct-body    IDENTIFIER_WITH_TEMPLATE    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "body": $3,
+            "name": $4
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon   struct-body    IDENTIFIER_WITH_TEMPLATE    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3,
+            "body": $4
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon   SEIMCOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3 
+        };
+    }
     |   modifiers   STRUCT   type   member-name-with-double-colon    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4 
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon      struct-body 
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3,
+            "body": $4
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon   struct-interfaces   struct-body
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3,
+            "base": $4,
+            "body": $5
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon     struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3,
+            "body": $4
+        };
+    }
     |   modifiers   STRUCT   member-name-with-double-colon   struct-interfaces    struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $3,
+            "base": $4,
+            "body": $5
+        };
+    }
     |   modifiers   STRUCT   struct-body   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "body": $3
+        };
+    }
     |   modifiers   CONST    STRUCT   struct-body
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1, 
+            "body": $4
+        };
+    }
     |   modifiers   CONST    STRUCT   struct-body    identifier-list    struct-bracket    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $5,
+            "body": $4
+        };
+    }
     |   modifiers   CONST    STRUCT   struct-body    identifier-list    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $5,
+            "body": $4
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon   struct-body    IDENTIFIER_WITH_TEMPLATE    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "body": $5
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon   SEIMCOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4 
+        };
+    }
     |   modifiers   CONST    STRUCT   type   member-name-with-double-colon    SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $5
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon      struct-body 
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "body": $5
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon   struct-interfaces   struct-body
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "base": $5,
+            "body": $6
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon     struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "body": $5
+        };
+    }
     |   modifiers   CONST    STRUCT   member-name-with-double-colon   struct-interfaces    struct-body   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $4,
+            "base": $5,
+            "body": $6
+        };
+    }
     |   modifiers   CONST    STRUCT   struct-body   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    {
+        $$ = {
+            "node": "struct",
+            "modifiers": $1,
+            "name": $5,
+            "body": $4
+        };
+    }
     |   CONST   struct-declaration
+    {
+        $$ = $2;
+    }
     |   STRUCT  struct-body  IDENTIFIER_WITH_TEMPLATE  SEMICOLON
+    {
+        $$ = {
+            "node": "struct", 
+            "name": $3,
+            "body": $2
+        };
+    }
     ;
  
 struct-method-body
@@ -1791,19 +2494,65 @@ struct-interfaces
 
 struct-body
     :   OPEN_BRACE   struct-member-list   CLOSE_BRACE
-    |   OPEN_BRACE   CLOSE_BRACE
     {
         $$ = $2;
     }
+    |   OPEN_BRACE   CLOSE_BRACE 
     ;
      
 struct-member-list
-    :   access-specifier    COLON   member-list
-    |   access-specifier    COLON
-    |   struct-member-declaration    member-list
-    |   struct-member-declaration
+    :  struct-member-list   struct-with-access-specifier      
+    {
+        
+        prev_modifier = $1[$1.length-1]["modifier"];
+        
+        if($2["modifier"]){
+            $1.push($2);
+        }
+        else{
+        
+            if(prev_modifier){
+                $2["modifier"] = prev_modifier;
+            }
+            else{
+                $1[$1.length-1]["modifier"] = "public";
+                $2["modifier"] = "public";
+            } 
+            $1.push($2);
+        }
+         
+        $$ = $1;
+    }
+    |   struct-with-access-specifier
+    {
+        $$ = [ $1 ];
+    }
     ;
+
  
+ 
+struct-with-access-specifier
+    :   access-specifier    COLON   struct-member-declaration
+    {
+        $$ = {
+            "modifier": $1,
+            "member": $3
+        };
+    }   
+    |   access-specifier    COLON    
+    {
+        $$ = {
+            "modifier": $1,
+            "member": "null"
+        };
+    }  
+    |   struct-member-declaration
+    {
+        $$ = { 
+            "member": $1
+        };
+    }  
+    ;
 
 struct-member-declarations
     :   struct-member-declaration
@@ -1812,8 +2561,11 @@ struct-member-declarations
     }
     |   struct-member-declarations   struct-member-declaration
     {
-        $1.push($2);
-        $$ = $1;
+        if($2!=';'){
+            $1.push($2);
+            $$ = $1;
+        }
+        
     }
     ;
     
@@ -1834,7 +2586,11 @@ struct-member-declaration
     {
         $$ = $1;
     }  
-    |   type-declaration
+    |   struct-declaration
+    {
+        $$ = $1;
+    } 
+    |   enum-declaration
     {
         $$ = $1;
     } 
@@ -1843,30 +2599,78 @@ struct-member-declaration
         $$ = $1;
     }
     |   SEMICOLON
+    {
+        $$ = $1;
+    }
     ;
 
 
 
-/* C.2.6 Namespaces */
+/* C.2.6 compilationUnit */
 compilationUnit
     :   EOF
     |   block_or_statement_list       EOF
+    {
+        return {
+            "node": "CompilationUnit",
+            "member": $1
+        };
+    }   
     ;
 
 block_or_statement_list
     :   block_or_statement_list     block_or_statement
+    {
+        $1.push($2);
+        $$ = $1;
+    }
     |   block_or_statement
+    {
+        $$ = [ $1 ];
+    }
     ;
     
 block_or_statement
     :   class-declaration
+    {
+        $$ = $1;
+    }
     |   method-declaration 
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   class-member-declaration  
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   namespace-declaration
+    {
+        $$ = $1;
+    }
     |   struct-declaration 
+    {
+        $$ = $1;
+    }
     |   enum-declaration
+    {
+        $$ = $1;
+    }
     |   extern-declaration
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   SEMICOLON
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     ;
 
 extern-declaration
@@ -1878,32 +2682,55 @@ extern-declaration
 
 namespace-declaration
     :   NAMESPACE   namespace-or-type-name   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    {
+        $$ = {
+            "node": "namespace",
+            "name": $2,
+            "body": $4
+        };
+    }
     |   NAMESPACE   namespace-or-type-name   OPEN_BRACE   CLOSE_BRACE
-    |   NAMESPACE   INTERNAL   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    {
+        $$ = {
+            "node": "namespace",
+            "name": $2 
+        };
+    }
+    |   NAMESPACE   INTERNAL   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE
+    {
+        $$ = {
+            "node": "namespace",
+            "name": $2,
+            "body": $4
+        };
+    }
     |   NAMESPACE   INTERNAL   OPEN_BRACE   CLOSE_BRACE
+    {
+        $$ = {
+            "node": "namespace",
+            "name": $2 
+        };
+    }
     |   NAMESPACE   OPEN_BRACE    block_or_statement_list    CLOSE_BRACE 
+    {
+        $$ = {
+            "node": "namespace", 
+            "body": $3
+        };
+    }
     |   NAMESPACE   OPEN_BRACE    CLOSE_BRACE 
+    {
+        $$ = {
+            "node": "namespace" 
+        };
+    }
     |   namespace-declaration    SEMICOLON
+    {
+        $$ = $1;
+    }
     ;
  
-
-namespace-body
-    :   OPEN_BRACE   CLOSE_BRACE
-    |   OPEN_BRACE   using-directives   CLOSE_BRACE
-    {
-        $$ = $2;
-    }
-    |   OPEN_BRACE   namespace-member-declarations   CLOSE_BRACE
-    {
-        $$ = $2;
-        
-    }
-    |   OPEN_BRACE   using-directives   namespace-member-declarations   CLOSE_BRACE
-    {
-        
-        $$ = $2.concat($3);
-    }   
-    ;
+ 
 
 using-directives
     :   using-directive
@@ -1933,14 +2760,14 @@ using-alias-directive
     {
         $$ = {
             "node" : "using",
-            "qualifiedName" : $4
+            "name" : $3
         };
     }
     |   USING   IDENTIFIER_WITH_TEMPLATE   ASSIGN   namespace-or-type-name   SEMICOLON
     {
         $$ = {
             "node" : "using",
-            "qualifiedName" : $4
+            "name" : $2
         };
     }
     ;
@@ -1950,51 +2777,19 @@ using-namespace-directive
     {
         $$ = {
             "node" : "using",
-            "qualifiedName" : $2
+            "name" : $3
         };
     }
     |   USING   namespace-name   SEMICOLON
     {
         $$ = {
             "node" : "using",
-            "qualifiedName" : $2
+            "name" : $2
         };
     }
     ;
-
-namespace-member-declarations
-    :   namespace-member-declaration
-    {
-        $$ = [ $1 ];
-    }
-    |   namespace-member-declarations   namespace-member-declaration
-    {
-        $1.push($2);
-        $$ = $1;
-    }
-    ;
-    
-namespace-member-declaration
-    :   namespace-declaration
-    {
-        $$ = $1;
-    }
-    |   type-declaration
-    {
-        $$ = $1;
-    }
-    ;
-
-type-declaration
-    :   struct-declaration
-    {
-        $$ = $1;
-    } 
-    |   enum-declaration
-    {
-        $$ = $1;
-    } 
-    ;
+ 
+ 
 
 
 /* Modifier */ 
@@ -2014,6 +2809,9 @@ modifier
     |   VIRTUAL   
     |   OVERRIDE   
     |   IDENTIFIER   STATIC
+    {
+        $$ = $1 + " " + $2;
+    }
     |   TYPEDEF 
     |   EXPLICIT
     |   IMPLICIT
@@ -2044,23 +2842,183 @@ class-key
     
 class-declaration 
     :   class-key   class-body      identifier-list     SEMICOLON
+    {
+        $$ = {
+            "node": "class",
+            "body": $2
+        };
+    }   
     |   class-key   class-body      SEMICOLON
+    {
+        $$ = {
+            "node": "class",
+            "body": $2
+        };
+    }   
     |   class-key   identifier-list   class-suffix      identifier-list     SEMICOLON
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"]
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      SEMICOLON
-    |   class-key   identifier-list   class-suffix      class-body  
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"]
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
+    |   class-key   identifier-list   class-suffix      class-body
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "body": $4
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "base": $4,
+            "body": $5
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      class-body      identifier-list     SEMICOLON  
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "body": $4
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      class-body      SEMICOLON  
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "body": $4
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   identifier-list    SEMICOLON  
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "base": $4,
+            "body": $5
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   SEMICOLON   
+    {
+        $$ = {
+            "node": "class",
+            "name": $2["name"],
+            "base": $4,
+            "body": $5
+        };
+        
+        if($2["typeParameters"]){
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        
+        if($3=="abstract"){
+            $$["modifier"] = $3;
+        }
+    }   
     ;
 
 
 
 identifier-list
     :   identifier-list    DOUBLE_COLON   IDENTIFIER_WITH_TEMPLATE
+    {
+        if($3["typeParameters"]){
+            $$["name"] =  $3["name"];
+            $$["typeParameters"] = $3["typeParameters"];
+        }
+        else {
+            $$["name"] =  $3;
+        }
+    }   
     |   identifier-list    IDENTIFIER_WITH_TEMPLATE
+    { 
+        if($2["typeParameters"]){
+            $$["name"] =  $2["name"];
+            $$["typeParameters"] = $2["typeParameters"];
+        }
+        else {
+            $$["name"] =  $2;
+        }
+    }   
     |   IDENTIFIER_WITH_TEMPLATE
+    { 
+        if($1["typeParameters"]){
+            $$["name"] = $1["name"];
+            $$["typeParameters"] = $1["typeParameters"];
+        }
+        else {
+            $$["name"] = $1;
+        }
+    }   
     ;
 
 class-suffix
@@ -2070,19 +3028,44 @@ class-suffix
     
 class-base
     :   COLON   base-list
+    {
+        $$ = $2;
+    }
     ;
 
 base-list
     :   base-list   COMMA    base-specifier
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     |   base-specifier
+    {
+        $$ = [ $1 ];
+    }
     ;    
 
 base-specifier
     :   type-with-interr
+    {
+        $$ = $1;
+    }
     |   VIRTUAL     access-specifier    type-with-interr
+    {
+        $$ = $3;
+    }   
     |   VIRTUAL     type-with-interr
+    {
+        $$ = $2;
+    }
     |   access-specifier    VIRTUAL     type-with-interr
+    {
+        $$ = $3;
+    }
     |   access-specifier    type-with-interr
+    {
+        $$ = $2;
+    }
     ;
     
 access-specifier
@@ -2091,6 +3074,9 @@ access-specifier
     |   PUBLIC
     |   INTERNAL
     |   PROTECTED  PRIVATE 
+    {
+        $$ = $1 + " " + $2;
+    }
     |   type  
     ;
      
@@ -2098,15 +3084,70 @@ access-specifier
 class-body
     :   OPEN_BRACE   CLOSE_BRACE
     |   OPEN_BRACE   member-list   CLOSE_BRACE 
+    {
+        $$ = $2;
+    }
     ;
 
+
+
+
 member-list
-    :   access-specifier    access-specifier    COLON   member-list
-    |   access-specifier    access-specifier    COLON
-    |   access-specifier    COLON   member-list
-    |   access-specifier    COLON
-    |   class-member-declaration    member-list
+    :   member-list     class-with-access-specifier
+    {
+        prev_modifier = $1[$1.length-1]["modifier"];
+        
+        if($2["modifier"]){
+            $1.push($2);
+        }
+        else{
+        
+            if(prev_modifier){
+                $2["modifier"] = prev_modifier;
+            }
+            else{
+                $1[$1.length-1]["modifier"] = "public";
+                $2["modifier"] = "public";
+            } 
+            $1.push($2);
+        }
+         
+        $$ = $1;
+    }
+    |   class-with-access-specifier
+    {
+        $$ = [ $1 ];
+    }   
+    ;
+
+class-with-access-specifier
+    :   access-specifier    access-specifier    COLON   class-member-declaration
+    {
+        $$ = {
+            "modifier": $2,
+            "member": $4
+        };
+    }
+    |   access-specifier    COLON   class-member-declaration
+    {
+        $$ = {
+            "modifier": $1,
+            "member": $3
+        };
+    }   
+    |   access-specifier    COLON   
+    {
+        $$ = {
+            "modifier": $1,
+            "member": "null"
+        };
+    }   
     |   class-member-declaration
+    {
+        $$ = {
+            "member": $1
+        };
+    }
     ;
 
 class-member-declarations
@@ -2138,86 +3179,266 @@ class-member-declaration
     {
         $$ = $1;
     }  
-    
     |   destructor-declaration
     {
         $$ = $1;
-    }
-    |   type-declaration
+    } 
+    |   using-directive
     {
         $$ = $1;
     }
-    |   using-directive
     |   constant-declaration
+    {
+        $$ = $1;
+    }
     |   FRIEND   CLASS   IDENTIFIER_WITH_TEMPLATE   SEMICOLON
+    { 
+        $$ = {
+            "node": "class"
+        };
+        if($1["typeParameters"]){
+            $$["name"] = $3["name"];
+            $$["typeParameters"] = $3["typeParameters"];
+        }
+        else {
+            $$["name"] = $3;
+        }
+    }   
     |   class-declaration
+    {
+        $$ = $1;
+    }
     |   struct-declaration
+    {
+        $$ = $1;
+    }
     |   enum-declaration
+    {
+        $$ = $1;
+    }
     |   static-constructor-declaration
     {
         $$ = $1;
     }
     |   SEMICOLON
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     ;
 
 
 constant-declaration
-    :   type-with-interr   constant-declarators   SEMICOLON  
-    |   modifiers   type-with-interr   constant-declarators   SEMICOLON  
+    :   type-with-interr   constant-declarators   SEMICOLON 
+    {
+        $$ = {
+            "node" : "constant",
+            "type" : $1,
+            "name" : $2 
+        };
+    }
+    |   modifiers   type-with-interr   constant-declarators   SEMICOLON 
+    {
+        $$ = {
+            "node": "constant",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3 
+        };
+    }
     ;
  
 constant-declarators
     :   constant-declarator 
+    {
+        $$ = [ $1 ];
+    }
     |   constant-declarators   COMMA   STAR    constant-declarator 
+    {
+        $1.push($4);
+        $$ = $1;
+    }   
     |   constant-declarators   COMMA   constant-declarator 
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     ;
 
 constant-declarator
     :   IDENTIFIER_WITH_TEMPLATE   ASSIGN   constant-expression 
+    {
+        $$ = {
+            "node":"variable",
+            "value": $3
+        };
+        if($1["typeParameters"]){
+            $$["name"] = $1["name"];
+            $$["typeParameters"] = $1["typeParameters"];
+        }
+        else {
+            $$["name"] = $1;
+        }
+    }
     |   IDENTIFIER_WITH_TEMPLATE
+    {
+        $$ = {
+            "node":"variable"
+        };
+        if($1["typeParameters"]){
+            $$["name"] = $1["name"];
+            $$["typeParameters"] = $1["typeParameters"];
+        }
+        else {
+            $$["name"] = $1;
+        }
+    }
     ;
 
 field-declaration
     :   field-variable-declarators   SEMICOLON  
+    {
+        $$ = {
+            "node": "field",
+            "name": $1
+        };
+    }
     |   modifiers    field-variable-declarators   SEMICOLON    
+    {
+        $$ = {
+            "node": "field",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     |   field-variable-declarators     function-pointer     SEMICOLON
+    {
+        $$ = {
+            "node": "field",
+            "name": $1
+        };
+    }
     |   modifiers    field-variable-declarators     function-pointer    SEMICOLON
+    {
+        $$ = {
+            "node": "field",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     |   field-variable-declarators     function-pointer       static-constructor-parameter
+    {
+        $$ = {
+            "node": "field",
+            "name": $1
+        };
+    }
     |   modifiers    field-variable-declarators     function-pointer       static-constructor-parameter
+    {
+        $$ = {
+            "node": "field",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     ;
     
 function-pointer
     :   OPEN_PARENS   STAR    member-name-with-double-colon-star    CLOSE_PARENS
+    {
+        $$ = $1 + $2 + $3 + $4;
+    }
     |   OPEN_PARENS   member-name-with-double-colon-star    CLOSE_PARENS    
+    {
+        $$ = $1 + $2 + $3;
+    }
     |   OPEN_PARENS   CLOSE_PARENS   
+    {
+        $$ = $1 + $2;
+    }
     ;  
 
 field-variable-declarators
     :   field-variable-declarators   COMMA   STAR    field-variable-declarator 
+    {
+        $1.push($4);
+        $$ = $1;
+    }
     |   field-variable-declarators   COMMA   field-variable-declarator 
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     |   field-variable-declarator 
+    {
+        $$ = [ $1 ];
+    }
     ;
 
 field-variable-declarator
     :   member-name-with-double-colon      ASSIGN     variable-initializer 
-    |   member-name-with-double-colon   
+    {
+        $$ = {
+            "node":"variable",
+            "name": $1,
+            "value": $3
+        }; 
+    }
+    |   member-name-with-double-colon 
+    {
+        $$ = {
+            "node":"variable",
+            "name": $1 
+        };
+    }
     ;
 
 
 variable-declarators
     :   variable-declarators   COMMA   STAR    variable-declarator 
+    {
+        $1.push($4);
+        $$ = $1;
+    }
     |   variable-declarators   COMMA   variable-declarator 
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     |   variable-declarator 
+    {
+        $$ = [ $1 ];
+    }
     ;
 
 variable-declarator
     :   type      ASSIGN   variable-initializer 
+    {
+        $$ = {
+            "node": "variable",
+            "name": $1,
+            "initialize": $3
+        };
+    }
     |   type     
+    {
+        $$ = {
+            "node": "variable",
+            "name": $1 
+        };
+    }
     ;
 
 variable-initializer
     :   expression 
+    {
+        $$ =$1;
+    }
     |   array-initializer 
+    {
+        $$ = $1;
+    }
     ;
 
 
@@ -2256,21 +3477,69 @@ member-name-with-double-colon-literal
     
 class-method-declaration
     :   class-method-header   method-prefixs   block   SEMICOLON 
+    {
+        $$ = $1;
+    }
     |   class-method-header   method-prefixs   ctor-initializer   block     SEMICOLON
+    {
+        $$ = $1;
+    }
     |   class-method-header   method-prefixs   ctor-initializer   block
+    {
+        $$ = $1;
+    }
     |   class-method-header   method-prefixs   block
+    {
+        $$ = $1;
+    }
     |   class-method-header   method-prefixs   SEMICOLON
+    {
+        $$ = $1;
+    }
     |   class-method-header   method-prefixs   
+    {
+        $$ = $1;
+    }
     |   class-method-header   IDENTIFIER_WITH_KEYWORD   block   SEMICOLON 
+    {
+        $$ = $1;
+    }
     |   class-method-header   block   SEMICOLON 
+    {
+        $$ = $1;
+    }
     |   class-method-header   ctor-initializer    block    SEMICOLON
+    {
+        $$ = $1;
+    }
     |   class-method-header   ctor-initializer    block
+    {
+        $$ = $1;
+    }
     |   class-method-header   IDENTIFIER_WITH_KEYWORD   block
+    {
+        $$ = $1;
+    }
     |   class-method-header   block
+    {
+        $$ = $1;
+    }
     |   class-method-header   IDENTIFIER_WITH_KEYWORD   OPEN_PARENS   argument-list    CLOSE_PARENS     SEMICOLON 
+    {
+        $$ = $1;
+    }
     |   class-method-header   IDENTIFIER_WITH_KEYWORD   SEMICOLON 
+    {
+        $$ = $1;
+    }
     |   class-method-header   SEMICOLON 
-    |   class-method-header    
+    {
+        $$ = $1;
+    }
+    |   class-method-header   
+    {
+        $$ = $1;
+    }
     ;
 
 method-prefixs
@@ -2288,24 +3557,150 @@ method-prefix
 
 class-method-header  
     :   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    class-method-header
-    |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     class-method-header      
-    |   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1,
+            "parameter": $3 
+        };
+    }
+    |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     class-method-header  
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1 
+        };
+    }
+    |   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS  
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1,
+            "parameter": $3 
+        };
+    }
     |   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
-    |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS     
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1 
+        };
+    }
+    |   type   member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
+    {
+        $$ = {
+            "node": "method", 
+            "type": $1,
+            "name": $2,
+            "parameter": $4
+        };
+    }
     |   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS         
+     {
+        $$ = {
+            "node": "method", 
+            "type": $1,
+            "name": $2 
+        };
+    }
     |   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    class-method-header
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1 
+        };
+    }
     |   type   OPEN_PARENS   CLOSE_PARENS    class-method-header
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1  
+        };
+    }
     |   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS        
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1 ,
+            "parameter": $3
+        };
+    }
     |   type   OPEN_PARENS   CLOSE_PARENS 
+    {
+        $$ = {
+            "node": "constructor", 
+            "name": $1 
+        };
+    }
     |   modifiers   type   function-pointer   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
+    {
+        $$ = {
+            "node": "method",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3,
+            "parameter": $5
+        };
+    }
     |   modifiers   type   function-pointer   OPEN_PARENS   CLOSE_PARENS
+    {
+        $$ = {
+            "node": "method",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3 
+        };
+    }
     |   modifiers   type    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
+    {
+        $$ = {
+            "node": "method",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3,
+            "parameter": $5
+        };
+    }
     |   modifiers   type   member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
+    {
+        $$ = {
+            "node": "method",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3
+        };
+    }
     |   modifiers    member-name-with-double-colon   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS
-    |   modifiers    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS       
+    {
+        $$ = {
+            "node": "constructor",
+            "modifiers": $1,
+            "name": $2,
+            "parameter": $4
+        };
+    }
+    |   modifiers    member-name-with-double-colon   OPEN_PARENS   CLOSE_PARENS     
+    {
+        $$ = {
+            "node": "constructor",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     |   member-name-with-double-colon 
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   class-method-header    ASSIGN   variable-initializer  
+    {
+        $$ = $1;
+    }
     |   class-method-header    CONST    ASSIGN   variable-initializer  
+    {
+        $$ = $1;
+    }
     ; 
 
 method-header  
@@ -2318,36 +3713,102 @@ method-header
 
 method-types
     :   method-types  method-type
+    {
+        $$ = $1 + " " + $2;
+    }
     |   method-type
+    {
+        $$ = $1;
+    }
     ;
 
 method-type
-    :   type      
+    :   type
+    {
+        $$ = $1 ;
+    }
     ;     
      
 member-name-with-double-colon-star
     :   type    STAR   member-name-with-double-colon-star  
+    {
+        $$ = $1 + "" + $2 + "" + $3 ;
+    }
     |   type    member-name-with-double-colon-star  
+    {
+        $$ = $1 + "" + $2 ;
+    }
     |   member-name-with-double-colon-star   member-name     DOUBLE_COLON    STAR    member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   member-name-with-double-colon-star   member-name     DOUBLE_COLON    TILDE    member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4 + "" + $5;
+    }
     |   member-name-with-double-colon-star   member-name     DOUBLE_COLON   member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   member-name-with-double-colon-star   COMMA   STAR   member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3 + "" + $4;
+    }
     |   member-name-with-double-colon-star   COMMA   member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   member-name-with-double-colon-star   STAR    member-name
+    {
+        $$ = $1 + "" + $2 + "" + $3;
+    }
     |   member-name-with-double-colon-star   member-name
+    {
+        $$ = $1 + "" + $2;
+    }
     |   type    STAR
+    {
+        $$ = $1 + "" + $2;
+    }
     |   type
+    {
+        $$ = $1;
+    }
     ;     
      
 member-name-with-double-colon
     :   type    member-name-with-double-colon  
+    {
+        $$ = $1 + " " +$2;
+    }
     |   member-name-with-double-colon   member-name     DOUBLE_COLON    STAR    member-name
+    {
+        $$ = $1 + " " +$2 + " " + $3 + " " + $4+ " " + $5;
+    }
     |   member-name-with-double-colon   member-name     DOUBLE_COLON    TILDE    member-name
+    {
+        $$ = $1 + " " +$2 + " " + $3 + " " + $4+ " " + $5;
+    }
     |   member-name-with-double-colon   member-name     DOUBLE_COLON   member-name
+    {
+        $$ = $1 + " " +$2 + " " + $3 + " " + $4;
+    }
     |   member-name-with-double-colon   COMMA   STAR   member-name
+    {
+        $$ = $1 + " " +$2 + " " + $3 + " " + $4;
+    }
     |   member-name-with-double-colon   COMMA   member-name
+    {
+        $$ = $1 + " " +$2 + " " + $3;
+    }
     |   member-name-with-double-colon   member-name
+    {
+        $$ = $1 + " " +$2;
+    }
     |   type
+    {
+        $$ = $1;
+    }
     ;
      
 member-name
@@ -2366,19 +3827,47 @@ method-body
 
 formal-parameter-list
     :   fixed-parameters 
+    {
+        $$ = $1;
+    }
     |   fixed-parameters   COMMA   STAR    parameter-array 
+    {
+        $1.push($4);
+        $$ = $1;
+    }
     |   fixed-parameters   COMMA   parameter-array 
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     |   parameter-array 
+    {
+        $$ = [ $1 ];
+    }
     ;
 
 fixed-parameters
     :   fixed-parameters   COMMA   STAR   fixed-parameter  
+    {
+        $1.push($4);
+        $$ = $1;
+    }
     |   fixed-parameters   COMMA   fixed-parameter 
+    {
+        $1.push($3);
+        $$ = $1;
+    }
     |   fixed-parameter
+    {
+        $$ = [ $1 ];
+    }
     ;
 
 IDENTIFIER_WITH_KEYWORD
     :   TILDE   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = $1 + $2;
+    }
     |   IDENTIFIER_WITH_TEMPLATE
     |   ADD
     |   REMOVE
@@ -2404,21 +3893,111 @@ IDENTIFIER_WITH_KEYWORD
 
 fixed-parameter
     :   type-with-interr   function-pointer     OPEN_PARENS   formal-parameter-list    CLOSE_PARENS
+    {
+        $$ = {
+            "type": $1,
+            "name": $2
+        };
+    }
     |   type-with-interr   function-pointer     OPEN_PARENS     CLOSE_PARENS
-    |   type-with-interr   IDENTIFIER_WITH_KEYWORD     ASSIGN     expression   
+    {
+        $$ = {
+            "type": $1,
+            "name": $2
+        };
+    }
+    |   type-with-interr   IDENTIFIER_WITH_KEYWORD     ASSIGN     expression  
+    {
+        $$ = {
+            "type": $1,
+            "name": $2
+        };
+    }
     |   CONST    STRUCT   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1 + " " + $2 + " " + $3,
+            "name": $4
+        };
+    }
     |   STRUCT   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1 + " " + $2,
+            "name": $3
+        };
+    }
     |   STRUCT   type-with-interr   
-    |   CONST    ENUM   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1+ " " + $2 
+        };
+    }
+    |   CONST    ENUM   type-with-interr   IDENTIFIER_WITH_KEYWORD 
+    {
+        $$ = {
+            "type": $1 + " " + $2 + " " + $3,
+            "name": $4
+        };
+    }
     |   ENUM   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1 + " " + $2,
+            "name": $3
+        };
+    }
     |   ENUM   type-with-interr  
+    {
+        $$ = {
+            "type": $1 + " " + $2
+        };
+    }
     |   type-with-interr   AMP   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1 + "" + $2,
+            "name": $3
+        };
+    }
     |   type-with-interr   IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1,
+            "name": $2
+        };
+    }
     |   type-with-interr   
+    {
+        $$ = {
+            "type": $1
+        };
+    }
     |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD  ASSIGN   expression  
+    {
+        $$ = {
+            "type": $1+ " " + $2,
+            "name": $3
+        };
+    }
     |   fixed-parameter-prefix   type-with-interr   IDENTIFIER_WITH_KEYWORD     
+    {
+        $$ = {
+            "type": $1 + " " + $2,
+            "name": $3
+        };
+    }
     |   THIS    type-with-interr    IDENTIFIER_WITH_KEYWORD  
+    {
+        $$ = {
+            "type": $1 + " " + $2,
+            "name": $3
+        };
+    }
     |   fixed-parameter    local-rank-specifiers
+    {
+        $$ = $1; 
+    }
     ;
 
 fixed-parameter-prefix
@@ -2428,36 +4007,81 @@ fixed-parameter-prefix
  
 
 parameter-array
-    :   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE 
-    |   attributes   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE 
+    :   PARAMS   array-type   IDENTIFIER_WITH_TEMPLATE  
+    {
+        $$ = {
+            "type": $2,
+            "name": $3
+        };
+    }
     ;
 
 
 property-declaration
     :   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE  
+    {
+        $$ = {
+            "node": "property",
+            "type": $1,
+            "name": $2
+        };
+    }
     |   modifiers   type-with-interr   member-name   OPEN_BRACE   accessor-declarations   CLOSE_BRACE  
+    {
+        $$ = {
+            "node": "property",
+            "modifiers": $1,
+            "type": $2,
+            "name": $3
+        };
+    }
     ;
- 
- 
+  
   
 operator-declaration
-    :   modifiers   operator-declarator   method-body 
-    |   attributes   modifiers   operator-declarator   method-body  
+    :   modifiers   operator-declarator   method-body  
+    {
+        $2["node"]= "operator";
+        $2["modifiers"] = $1;
+        $$ =$2;
+    }
     ;
  
 
 operator-declarator
     :   unary-operator-declarator
+    {
+        $$ = $1;
+    }
     |   binary-operator-declarator  
+    {
+        $$ = $1;
+    }
     ;
 
 unary-operator-declarator
     :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
+    {
+        $$ = {
+            "type": $1,
+            "operator": $3,
+            "parameter": [{
+                "type": $5,
+                "name": $6
+            }]
+        };
+    }
     ;
 
 overloadable-operator
     :   overloadable-unary-operator 
+    {
+        $$ = $1;
+    }
     |   overloadable-binary-operator 
+    {
+        $$ = $1;
+    }
     ;
     
 
@@ -2474,6 +4098,19 @@ overloadable-unary-operator
     
 binary-operator-declarator
     :   type-with-interr   OPERATOR   overloadable-operator   OPEN_PARENS   type-with-interr   IDENTIFIER_WITH_TEMPLATE   COMMA   type-with-interr   IDENTIFIER_WITH_TEMPLATE   CLOSE_PARENS 
+    {
+        $$ = {
+            "type": $1,
+            "operator": $3,
+            "parameter": [{
+                "type": $5,
+                "name": $6
+            }, {
+                "type": $8,
+                "name": $9
+            }]
+        };
+    }
     ;
 
 overloadable-binary-operator
@@ -2506,32 +4143,108 @@ overloadable-binary-operator
     |   LT
     |   ASSIGN
     |   OPEN_PARENS    CLOSE_PARENS
+    {
+        $$ = $1 + $2;
+    }
     ;
  
 
 constructor-declaration
     :   constructor-declarator   SEMICOLON
+    {
+        $$ = $1;
+    }
     |   constructor-declarator   method-body  
+    {
+        $$ = $1;
+    }
     |   modifiers   constructor-declarator   method-body  
+    {
+        $2["modifiers"] = $1;
+        $$ = $2;
+    }
     ;
  
 constructor-declarator
     :   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS    ctor-initializer 
+    {
+        $$ = {
+            "node": "constructor",
+            "name": $1,
+            "parameter": $3
+        };
+    }
     |   type   OPEN_PARENS   formal-parameter-list   CLOSE_PARENS   
+    {
+        $$ = {
+            "node": "constructor",
+            "name": $1,
+            "parameter": $3
+        };
+    }
     |   type   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS   ctor-initializer 
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   type   OPEN_PARENS   member-name-with-double-colon-list   CLOSE_PARENS 
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   type   OPEN_PARENS   CLOSE_PARENS   ctor-initializer 
+    {
+        $$ = {
+            "node": "constructor",
+            "name": $1 
+        };
+    }
     |   type   OPEN_PARENS   CLOSE_PARENS 
+    {
+        $$ = {
+            "node": "constructor",
+            "name": $1 
+        };
+    }
     ;
  
 
 
 static-constructor-declaration
     :   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   STAR    member-name-with-double-colon    CLOSE_PARENS  
+    {
+        $$ = {
+            "node": "constructor",
+            "modifiers": $1,
+            "name": $2 
+        };
+    }
     |   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   member-name-with-double-colon    CLOSE_PARENS    
+    {
+        $$ = {
+            "node": "constructor",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     |   modifiers   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS   
+    {
+        $$ = {
+            "node": "constructor",
+            "modifiers": $1,
+            "name": $2
+        };
+    }
     |   static-constructor-declaration    static-constructor-parameter
+    {
+        $$ = $1;
+    }
     |   static-constructor-declaration    ctor-initializer    method-body
+    {
+        $$ = $1;
+    }
     ;
  
     
@@ -2545,13 +4258,59 @@ static-constructor-parameter
 
 destructor-declaration
     :   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "destructor", 
+            "modifiers": $1,
+            "name": $2 + "" + $3
+        };
+    }
     |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "destructor",  
+            "name": $1 + "" + $2
+        };
+    }
     |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS    formal-parameter-list   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   modifiers   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "destructor", 
+            "modifiers": $1,
+            "name": $2 + "" + $3
+        };
+    }
     |   modifiers   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     |   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
-    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body  
+    {
+        $$ = {
+            "node": "destructor",  
+            "name": $1 + "" + $2
+        };
+    }
+    |   EXTERN   TILDE   IDENTIFIER_WITH_TEMPLATE   OPEN_PARENS   CLOSE_PARENS    destructor-method-body 
+    {
+        $$ = {
+            "node": "null"
+        };
+    }
     ;
  
  destructor-method-body
