@@ -140,10 +140,10 @@ define(function (require, exports, module) {
         // Perform 1st Phase
         promise = this.performFirstPhase(options);
 
-//        // Perform 2nd Phase
-//        promise.always(function () {
-//            self.performSecondPhase(options);
-//        });
+        // Perform 2nd Phase
+        promise.always(function () {
+            self.performSecondPhase(options);
+        });
 
         // Load To Project
         promise.always(function () {
@@ -162,6 +162,317 @@ define(function (require, exports, module) {
 
         return promise;
     }; 
+    
+        /**
+     * Generate Diagrams (Type Hierarchy, Package Structure, Package Overview)
+     * @param {Object} options
+     */
+    CppCodeAnalyzer.prototype.generateDiagrams = function (options) {
+        var baseModel = Repository.get(this._root._id);
+        if (options.packageStructure) {
+            CommandManager.execute("diagramGenerator.packageStructure", baseModel, true);
+        }
+        if (options.typeHierarchy) {
+            CommandManager.execute("diagramGenerator.typeHierarchy", baseModel, true);
+        }
+        if (options.packageOverview) {
+            baseModel.traverse(function (elem) {
+                if (elem instanceof type.UMLPackage) {
+                    CommandManager.execute("diagramGenerator.overview", elem, true);
+                }
+            });
+        }
+    };
+    
+    /**
+     * Find Type.
+     *
+     * @param {type.Model} namespace
+     * @param {string|Object} type Type name string or type node.
+     * @param {Object} compilationUnitNode To search type with import statements.
+     * @return {type.Model} element correspond to the type.
+     */
+    
+    CppCodeAnalyzer.prototype._findType = function (namespace, type_, compilationUnitNode) {
+        var typeName,
+            pathName,
+            _type = null;
+
+        
+        typeName = type_; 
+        
+        if(typeof(typeName)!= "string"){
+            typeName = type_.name;   
+        } 
+        
+        pathName = [ typeName ];
+
+        // 1. Lookdown from context
+        if (pathName.length > 1) {
+            _type = namespace.lookdown(pathName);
+        } else {
+            _type = namespace.findByName(typeName);
+        }
+
+        // 2. Lookup from context
+        if (!_type) {
+            _type = namespace.lookup(typeName, null, this._root);
+        }
+        
+        var i, len;
+        // 3. Find from imported namespaces
+//        if (!_type) {
+//            if (compilationUnitNode.using) {
+//                var i, len;
+//                for (i = 0, len = compilationUnitNode.using.length; i < len; i++) {
+//                    var _import = compilationUnitNode.using[i]; 
+//                    // Find in import exact matches (e.g. import java.lang.String)
+//                    _type = this._root.lookdown(_import.name); 
+//                } 
+//            }
+//        }
+
+        if (!_type) {
+            for( i = 0, len=this._usingList.length; i < len; i++){
+                var _import = this._usingList[i]; 
+                // Find in import exact matches (e.g. import java.lang.String)
+                _type = this._root.lookdown(_import.name);    
+            }   
+        }
+        
+        // 4. Lookdown from Root
+        if (!_type) {
+            if (pathName.length > 1) {
+                _type = this._root.lookdown(pathName);
+            } else {
+                _type = this._root.findByName(typeName);
+            }
+        }
+         
+        return _type;
+    };
+    
+    
+      /**
+     * Return the class of a given pathNames. If not exists, create the class.
+     * @param {type.Model} namespace
+     * @param {Array.<string>} pathNames
+     * @return {type.Model} Class element corresponding to the pathNames
+     */
+    CppCodeAnalyzer.prototype._ensureClass = function (namespace, pathNames) {
+        if (pathNames.length > 0) {
+            var _className = pathNames.pop(),
+                _package = this._ensurePackage(namespace, pathNames),
+                _class = _package.findByName(_className);
+            
+            if (!_class) { 
+                _class = new type.UMLClass();
+                _class._parent = _package;
+                _class.name = _className;
+                _class.visibility = UML.VK_PUBLIC;
+                _package.ownedElements.push(_class); 
+            }
+            
+            return _class;
+        }
+        return null;
+    };
+    
+    
+        /**
+     * Test a given type is a generic collection or not
+     * @param {Object} typeNode
+     * @return {string} Collection item type name
+     */
+    
+    // _itemTypeName = this._isGenericCollection(_asso.node.type, _asso.node.compilationUnitNode);
+    
+    CppCodeAnalyzer.prototype._isGenericCollection = function (typeNode, compilationUnitNode) {
+//        if (typeNode.qualifiedName.typeParameters && typeNode.qualifiedName.typeParameters.length > 0) {
+//            var _collectionType = typeNode.qualifiedName.name,
+//                _itemType       = typeNode.qualifiedName.typeParameters[0].name;
+//
+//            // Used Full name (e.g. java.util.List)
+//            if (_.contains(javaUtilCollectionTypes, _collectionType)) {
+//                return _itemType;
+//            }
+//
+//            // Used name with imports (e.g. List and import java.util.List or java.util.*)
+//            if (_.contains(javaCollectionTypes, _collectionType)) {
+//                if (compilationUnitNode.imports) {
+//                    var i, len;
+//                    for (i = 0, len = compilationUnitNode.imports.length; i < len; i++) {
+//                        var _import = compilationUnitNode.imports[i];
+//
+//                        // Full name import (e.g. import java.util.List)
+//                        if (_import.qualifiedName.name === "java.util." + _collectionType) {
+//                            return _itemType;
+//                        }
+//
+//                        // Wildcard import (e.g. import java.util.*)
+//                        if (_import.qualifiedName.name === "java.util" && _import.wildcard) {
+//                            return _itemType;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+        return null;
+    };
+    
+       /**
+     * Perform Second Phase
+     *   - Create Generalizations
+     *   - Create InterfaceRealizations
+     *   - Create Fields or Associations
+     *   - Resolve Type References
+     *
+     * @param {Object} options
+     */
+    CppCodeAnalyzer.prototype.performSecondPhase = function (options) {
+        var i, len, j, len2, _typeName, _type, _itemTypeName, _itemType, _pathName;
+ 
+        
+        // Create Generalizations
+        //     if super type not found, create a Class correspond to the super type.
+        for (i = 0, len = this._extendPendings.length; i < len; i++) {
+            var _extend = this._extendPendings[i];
+            _typeName = _extend.node;
+   
+            _type = this._findType(_extend.classifier, _typeName, _extend.compilationUnitNode);
+            
+            
+            if (!_type) {
+//                _pathName = this._toPathName(_typeName);
+                _pathName = [ _typeName ];
+//                if (_extend.kind === "interface") { 
+//                    _type = this._ensureInterface(this._root, _pathName);
+//                } else { 
+                _type = this._ensureClass(this._root, _pathName);
+//                }
+            } 
+            
+            var generalization = new type.UMLGeneralization();
+            generalization._parent = _extend.classifier;
+            generalization.source = _extend.classifier;
+            generalization.target = _type;
+            _extend.classifier.ownedElements.push(generalization);
+
+        }  
+ 
+        // Create Associations
+        for (i = 0, len = this._associationPendings.length; i < len; i++) {
+            var _asso = this._associationPendings[i];
+            _typeName = _asso.node;
+            _type = this._findType(_asso.classifier, _typeName, _asso.node.compilationUnitNode);
+            _itemTypeName = this._isGenericCollection(_asso.node.type, _asso.node.compilationUnitNode);
+            if (_itemTypeName) {
+                _itemType = this._findType(_asso.classifier, _itemTypeName, _asso.node.compilationUnitNode);
+            } else {
+                _itemType = null;
+            }
+
+            // if type found, add as Association
+            if (_type || _itemType) {
+                for (j = 0, len2 = _asso.node.name.length; j < len2; j++) {
+                    var variableNode = _asso.node.name[j];
+
+                    // Create Association
+                    var association = new type.UMLAssociation();
+                    association._parent = _asso.classifier;
+                    _asso.classifier.ownedElements.push(association);
+
+                    // Set End1
+                    association.end1.reference = _asso.classifier;
+                    association.end1.name = "";
+                    association.end1.visibility = UML.VK_PACKAGE;
+                    association.end1.navigable = false;
+
+                    // Set End2
+                    if (_itemType) {
+                        association.end2.reference = _itemType;
+                        association.end2.multiplicity = "*";
+                        this._addTag(association.end2, Core.TK_STRING, "collection", _asso.node.type.qualifiedName.name);
+                    } else {
+                        association.end2.reference = _type;
+                    }
+                    association.end2.name = variableNode.name;
+                    association.end2.visibility = this._getVisibility(_asso.node.modifiers);
+                    association.end2.navigable = true;
+
+                    // Final Modifier
+                    if (_.contains(_asso.node.modifiers, "final")) {
+                        association.end2.isReadOnly = true;
+                    }
+
+                    // Static Modifier
+                    if (_.contains(_asso.node.modifiers, "static")) {
+                        this._addTag(association.end2, Core.TK_BOOLEAN, "static", true);
+                    }
+
+                    // Volatile Modifier
+                    if (_.contains(_asso.node.modifiers, "volatile")) {
+                        this._addTag(association.end2, Core.TK_BOOLEAN, "volatile", true);
+                    }
+
+                    // Transient Modifier
+                    if (_.contains(_asso.node.modifiers, "transient")) {
+                        this._addTag(association.end2, Core.TK_BOOLEAN, "transient", true);
+                    }
+                }
+            // if type not found, add as Attribute
+            } else {
+                this.translateFieldAsAttribute(options, _asso.classifier, _asso.node);
+            }
+        }
+         
+        
+        // Resolve Type References
+        for (i = 0, len = this._typedFeaturePendings.length; i < len; i++) {
+            var _typedFeature = this._typedFeaturePendings[i];
+            _typeName = _typedFeature.node.type;
+
+            // Find type and assign
+            _type = this._findType(_typedFeature.namespace, _typedFeature.node, _typedFeature.node.compilationUnitNode);
+
+            // if type is exists
+            if (_type) {
+                _typedFeature.feature.type = _type;
+            // if type is not exists
+            } else {
+                // if type is generic collection type (e.g. java.util.List<String>)
+                _itemTypeName = this._isGenericCollection(_typedFeature.node.type, _typedFeature.node.compilationUnitNode);
+                if (_itemTypeName) {
+                    _typeName = _itemTypeName;
+                    _typedFeature.feature.multiplicity = "*";
+                    this._addTag(_typedFeature.feature, Core.TK_STRING, "collection", _typedFeature.node.type);
+                }
+
+                // if type is primitive type
+                if (_.contains(cppPrimitiveTypes, _typeName)) {
+                    _typedFeature.feature.type = _typeName;
+                // otherwise
+                } else {
+                    _pathName = [ _typeName ];
+                    var _newClass = this._ensureClass(this._root, _pathName);
+                    _typedFeature.feature.type = _newClass;
+                }
+            }
+
+            // Translate type's arrayDimension to multiplicity
+            if (_typedFeature.node.type && _typedFeature.node.type.length > 0) {
+                var _dim = [];
+                for (j = 0, len2 = _typedFeature.node.type.length; j < len2; j++) {
+                    if( _typedFeature.node.type [j] == '[' ) {
+                        _dim.push("*"); 
+                    }
+                }
+                _typedFeature.feature.multiplicity = _dim.join(",");
+            }
+        }
+    };
+
+    
     
     /**
      * Translate C++ CompilationUnit Node.
