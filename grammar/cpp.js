@@ -95,7 +95,7 @@ case 4:
             console.log('EMPTY');
         
 break;
-case 11: case 12: case 13: case 14: case 15: case 16: case 17: case 18: case 22: case 24: case 26: case 36: case 37: case 39: case 41: case 42: case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62: case 63: case 64: case 65: case 66: case 67: case 68: case 69: case 82: case 92: case 96: case 97: case 101: case 104: case 106: case 107: case 108: case 109: case 110: case 111: case 112: case 113: case 114: case 115: case 116: case 117: case 118: case 119: case 120: case 121: case 122: case 126: case 127: case 128: case 129: case 132: case 177: case 193: case 195: case 201: case 205: case 235: case 240: case 261: case 262: case 270: case 271: case 280: case 281: case 285: case 290: case 293: case 300: case 303: case 305: case 307: case 309: case 311: case 313: case 321: case 323: case 324: case 326: case 339: case 341: case 342: case 402: case 516: case 532: case 579: case 583: case 593: case 594: case 595: case 596: case 597: case 598: case 599: case 600: case 605: case 608: case 609: case 610: case 626: case 627: case 671: case 674: case 675: case 676: case 677: case 678: case 695: case 696: case 697: case 698: case 699: case 700: case 701: case 703: case 704: case 705: case 706: case 759: case 790: case 802: case 810: case 811: case 815: case 865: case 866: case 868: case 869:
+case 11: case 12: case 13: case 14: case 15: case 16: case 17: case 18: case 22: case 24: case 26: case 36: case 37: case 39: case 41: case 42: case 54: case 55: case 56: case 57: case 58: case 59: case 60: case 61: case 62: case 63: case 64: case 65: case 66: case 67: case 68: case 69: case 82: case 92: case 96: case 97: case 101: case 104: case 106: case 107: case 108: case 109: case 110: case 111: case 112: case 113: case 114: case 115: case 116: case 117: case 118: case 119: case 120: case 121: case 122: case 126: case 127: case 128: case 129: case 132: case 177: case 193: case 195: case 201: case 205: case 235: case 240: case 261: case 262: case 270: case 271: case 280: case 281: case 285: case 290: case 293: case 300: case 303: case 305: case 307: case 309: case 311: case 313: case 321: case 323: case 324: case 326: case 339: case 341: case 342: case 402: case 516: case 532: case 579: case 583: case 593: case 594: case 595: case 596: case 597: case 598: case 599: case 600: case 605: case 608: case 609: case 610: case 626: case 627: case 671: case 674: case 675: case 676: case 677: case 678: case 692: case 695: case 696: case 697: case 698: case 699: case 700: case 701: case 703: case 704: case 705: case 706: case 759: case 790: case 802: case 810: case 811: case 815: case 865: case 866: case 868: case 869:
 
         this.$ = $$[$0];
     
@@ -880,19 +880,19 @@ break;
 case 586:
 
         
-        prev_modifier = $$[$0-1][$$[$0-1].length-1]["modifier"];
+        prev_modifier = $$[$0-1][$$[$0-1].length-1]["modifiers"];
         
-        if($$[$0]["modifier"]){
+        if($$[$0]["modifiers"]){
             $$[$0-1].push($$[$0]);
         }
         else{
         
             if(prev_modifier){
-                $$[$0]["modifier"] = prev_modifier;
+                $$[$0]["modifiers"] = prev_modifier;
             }
             else{
-                $$[$0-1][$$[$0-1].length-1]["modifier"] = "public";
-                $$[$0]["modifier"] = "public";
+                $$[$0-1][$$[$0-1].length-1]["modifiers"] = [ "public" ];
+                $$[$0]["modifiers"] = [ "public" ];
             } 
             $$[$0-1].push($$[$0]);
         }
@@ -900,27 +900,26 @@ case 586:
         this.$ = $$[$0-1];
     
 break;
-case 588: case 689: case 690:
+case 588:
 
-        this.$ = {
-            "modifier": $$[$0-2],
-            "member": $$[$0]
-        };
+         
+        $$[$0]["modifiers"] = [ $$[$0-2] ];
+        
+        this.$ = $$[$0];
+        
     
 break;
-case 589: case 691:
+case 589:
 
         this.$ = {
-            "modifier": $$[$0-1],
-            "member": "null"
+            "modifiers": [ $$[$0-1] ],
+            "node": "null"
         };
     
 break;
 case 590:
 
-        this.$ = { 
-            "member": $$[$0]
-        };
+        this.$ =  $$[$0];
     
 break;
 case 592:
@@ -1029,7 +1028,7 @@ case 658:
         }
         
         if($$[$0-2]=="abstract"){
-            this.$["modifier"] = $$[$0-2];
+            this.$["modifiers"] = [ $$[$0-2] ];
         }
     
 break;
@@ -1045,7 +1044,7 @@ case 659:
         }
         
         if($$[$0-1]=="abstract"){
-            this.$["modifier"] = $$[$0-1];
+            this.$["modifiers"] = [ $$[$0-1] ];
         }
     
 break;
@@ -1062,7 +1061,7 @@ case 660:
         }
         
         if($$[$0-1]=="abstract"){
-            this.$["modifier"] = $$[$0-1];
+            this.$["modifiers"] = [ $$[$0-1] ];
         }
     
 break;
@@ -1080,7 +1079,7 @@ case 661:
         }
         
         if($$[$0-2]=="abstract"){
-            this.$["modifier"] = $$[$0-2];
+            this.$["modifiers"] = [ $$[$0-2] ];
         }
     
 break;
@@ -1097,7 +1096,7 @@ case 662:
         }
         
         if($$[$0-3]=="abstract"){
-            this.$["modifier"] = $$[$0-3];
+            this.$["modifiers"] = [ $$[$0-3] ];
         }
     
 break;
@@ -1114,7 +1113,7 @@ case 663:
         }
         
         if($$[$0-2]=="abstract"){
-            this.$["modifier"] = $$[$0-2];
+            this.$["modifiers"] = [ $$[$0-2] ];
         }
     
 break;
@@ -1132,7 +1131,7 @@ case 664:
         }
         
         if($$[$0-4]=="abstract"){
-            this.$["modifier"] = $$[$0-4];
+            this.$["modifiers"] = [ $$[$0-4] ];
         }
     
 break;
@@ -1150,7 +1149,7 @@ case 665:
         }
         
         if($$[$0-3]=="abstract"){
-            this.$["modifier"] = $$[$0-3];
+            this.$["modifiers"] = [ $$[$0-3] ];
         }
     
 break;
@@ -1189,19 +1188,19 @@ case 668:
 break;
 case 687:
 
-        prev_modifier = $$[$0-1][$$[$0-1].length-1]["modifier"];
+        prev_modifier = $$[$0-1][$$[$0-1].length-1]["modifiers"];
         
-        if($$[$0]["modifier"]){
+        if($$[$0]["modifiers"]){
             $$[$0-1].push($$[$0]);
         }
         else{
         
             if(prev_modifier){
-                $$[$0]["modifier"] = prev_modifier;
+                $$[$0]["modifiers"] = prev_modifier;
             }
             else{
-                $$[$0-1][$$[$0-1].length-1]["modifier"] = "public";
-                $$[$0]["modifier"] = "public";
+                $$[$0-1][$$[$0-1].length-1]["modifiers"] = [ "public" ];
+                $$[$0]["modifiers"] = [ "public" ];
             } 
             $$[$0-1].push($$[$0]);
         }
@@ -1209,11 +1208,26 @@ case 687:
         this.$ = $$[$0-1];
     
 break;
-case 692:
+case 689:
+  
+        $$[$0]["modifiers"] = [ $$[$0-3] ];  
+        $$[$0]["modifiers"].push($$[$0-2]);
+         
+        this.$ = $$[$0]; 
+    
+break;
+case 690:
+  
+        $$[$0]["modifiers"]= [ $$[$0-2] ];
+        this.$ = $$[$0]; 
+    
+break;
+case 691:
 
         this.$ = {
-            "member": $$[$0]
-        };
+            "modifiers": [ $$[$0-1] ],
+            "node": "null"
+        }; 
     
 break;
 case 702:

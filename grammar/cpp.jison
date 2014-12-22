@@ -448,7 +448,7 @@ rank-specifiers
     {
         $$ = $1 + "" + $2;
     }
-    |  rank-specifier
+    |   rank-specifier
     {
         $$ = $1;
     }
@@ -2504,19 +2504,19 @@ struct-member-list
     :  struct-member-list   struct-with-access-specifier      
     {
         
-        prev_modifier = $1[$1.length-1]["modifier"];
+        prev_modifier = $1[$1.length-1]["modifiers"];
         
-        if($2["modifier"]){
+        if($2["modifiers"]){
             $1.push($2);
         }
         else{
         
             if(prev_modifier){
-                $2["modifier"] = prev_modifier;
+                $2["modifiers"] = prev_modifier;
             }
             else{
-                $1[$1.length-1]["modifier"] = "public";
-                $2["modifier"] = "public";
+                $1[$1.length-1]["modifiers"] = [ "public" ];
+                $2["modifiers"] = [ "public" ];
             } 
             $1.push($2);
         }
@@ -2534,23 +2534,22 @@ struct-member-list
 struct-with-access-specifier
     :   access-specifier    COLON   struct-member-declaration
     {
-        $$ = {
-            "modifier": $1,
-            "member": $3
-        };
+         
+        $3["modifiers"] = [ $1 ];
+        
+        $$ = $3;
+        
     }   
     |   access-specifier    COLON    
     {
         $$ = {
-            "modifier": $1,
-            "member": "null"
+            "modifiers": [ $1 ],
+            "node": "null"
         };
     }  
     |   struct-member-declaration
     {
-        $$ = { 
-            "member": $1
-        };
+        $$ =  $1;
     }  
     ;
 
@@ -2867,7 +2866,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      SEMICOLON
@@ -2882,7 +2881,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-body
@@ -2898,7 +2897,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   
@@ -2915,7 +2914,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-body      identifier-list     SEMICOLON  
@@ -2931,7 +2930,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-body      SEMICOLON  
@@ -2947,7 +2946,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   identifier-list    SEMICOLON  
@@ -2964,7 +2963,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     |   class-key   identifier-list   class-suffix      class-base      class-body   SEMICOLON   
@@ -2981,7 +2980,7 @@ class-declaration
         }
         
         if($3=="abstract"){
-            $$["modifier"] = $3;
+            $$["modifiers"] = [ $3 ];
         }
     }   
     ;
@@ -3095,19 +3094,19 @@ class-body
 member-list
     :   member-list     class-with-access-specifier
     {
-        prev_modifier = $1[$1.length-1]["modifier"];
+        prev_modifier = $1[$1.length-1]["modifiers"];
         
-        if($2["modifier"]){
+        if($2["modifiers"]){
             $1.push($2);
         }
         else{
         
             if(prev_modifier){
-                $2["modifier"] = prev_modifier;
+                $2["modifiers"] = prev_modifier;
             }
             else{
-                $1[$1.length-1]["modifier"] = "public";
-                $2["modifier"] = "public";
+                $1[$1.length-1]["modifiers"] = [ "public" ];
+                $2["modifiers"] = [ "public" ];
             } 
             $1.push($2);
         }
@@ -3122,31 +3121,27 @@ member-list
 
 class-with-access-specifier
     :   access-specifier    access-specifier    COLON   class-member-declaration
-    {
-        $$ = {
-            "modifier": $2,
-            "member": $4
-        };
+    {  
+        $4["modifiers"] = [ $1 ];  
+        $4["modifiers"].push($2);
+         
+        $$ = $4; 
     }
     |   access-specifier    COLON   class-member-declaration
-    {
-        $$ = {
-            "modifier": $1,
-            "member": $3
-        };
+    {  
+        $3["modifiers"]= [ $1 ];
+        $$ = $3; 
     }   
     |   access-specifier    COLON   
     {
         $$ = {
-            "modifier": $1,
-            "member": "null"
-        };
+            "modifiers": [ $1 ],
+            "node": "null"
+        }; 
     }   
     |   class-member-declaration
     {
-        $$ = {
-            "member": $1
-        };
+        $$ = $1;
     }
     ;
 
@@ -3382,7 +3377,7 @@ field-variable-declarator
         $$ = {
             "node":"variable",
             "name": $1,
-            "value": $3
+            "initialize": $3
         }; 
     }
     |   member-name-with-double-colon 
