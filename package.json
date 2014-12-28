@@ -4,11 +4,11 @@
     "description": "c++ code generation and reverse engineering.",
     "homepage": "https://github.com/staruml/Cpp",
     "keywords": ["c++"],
-    "version": "0.0.1",
+    "version": "0.8.0",
     "author": {
-        "name": "SungMin Lee",
-        "email": "toori67@gmail.com",
-        "url": "https://github.com/toori67"
+        "name": "Dongjoon Lee",
+        "email": "joon1251@gmail.com",
+        "url": "https://github.com/dongjoon1251"
     },
     "license": "MIT",
     "engines": {
