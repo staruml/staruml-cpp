@@ -20,96 +20,96 @@
  * DEALINGS IN THE SOFTWARE.
  *
  */
- 
+
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 50, regexp: true */
 
 define(function (require, exports, module) {
-	"use strict";
+    "use strict";
 
-	var AppInit             = staruml.getModule("utils/AppInit"),
-		Repository          = staruml.getModule("core/Repository"),
-		Engine              = staruml.getModule("engine/Engine"),
-		Commands            = staruml.getModule("command/Commands"),
-		CommandManager      = staruml.getModule("command/CommandManager"),
-		MenuManager         = staruml.getModule("menu/MenuManager"),
-		Dialogs             = staruml.getModule("dialogs/Dialogs"),
-		ElementPickerDialog = staruml.getModule("dialogs/ElementPickerDialog"),
-		FileSystem          = staruml.getModule("filesystem/FileSystem"),
-		FileSystemError     = staruml.getModule("filesystem/FileSystemError"),
-		ExtensionUtils      = staruml.getModule("utils/ExtensionUtils"),
-		UML                 = staruml.getModule("uml/UML");
-		
-	var CodeGenUtils        = require("CodeGenUtils"),
-		CppPreferences		= require("CppPreferences"),
-		CppCodeGenerator	= require("CppCodeGenerator"),
+    var AppInit             = staruml.getModule("utils/AppInit"),
+        Repository          = staruml.getModule("core/Repository"),
+        Engine              = staruml.getModule("engine/Engine"),
+        Commands            = staruml.getModule("command/Commands"),
+        CommandManager      = staruml.getModule("command/CommandManager"),
+        MenuManager         = staruml.getModule("menu/MenuManager"),
+        Dialogs             = staruml.getModule("dialogs/Dialogs"),
+        ElementPickerDialog = staruml.getModule("dialogs/ElementPickerDialog"),
+        FileSystem          = staruml.getModule("filesystem/FileSystem"),
+        FileSystemError     = staruml.getModule("filesystem/FileSystemError"),
+        ExtensionUtils      = staruml.getModule("utils/ExtensionUtils"),
+        UML                 = staruml.getModule("uml/UML");
+
+    var CodeGenUtils        = require("CodeGenUtils"),
+        CppPreferences        = require("CppPreferences"),
+        CppCodeGenerator    = require("CppCodeGenerator"),
         CppReverseEngineer  = require("CppReverseEngineer");
-	
 
-	/**
-	 * Command IDs
-	 */
-	var CMD_CPP            = 'cpp',
-		CMD_CPP_GENERATE   = 'cpp.generate',
-		CMD_CPP_REVERSE    = 'cpp.reverse',
-		CMD_CPP_CONFIGURE  = 'cpp.configure';
 
-	function _handleGenerate(base, path, options) {
-		var result = new $.Deferred();
+    /**
+     * Command IDs
+     */
+    var CMD_CPP            = 'cpp',
+        CMD_CPP_GENERATE   = 'cpp.generate',
+        CMD_CPP_REVERSE    = 'cpp.reverse',
+        CMD_CPP_CONFIGURE  = 'cpp.configure';
 
-		// If options is not passed, get from preference
-		options = options || CppPreferences.getGenOptions();
+    function _handleGenerate(base, path, options) {
+        var result = new $.Deferred();
 
-		// If base is not assigned, popup ElementPicker
-		if (!base) {
-			ElementPickerDialog.showDialog("Select a base model to generate codes", null, type.UMLPackage)
-				.done(function (buttonId, selected) {
-					if (buttonId === Dialogs.DIALOG_BTN_OK && selected) {
-						base = selected;
+        // If options is not passed, get from preference
+        options = options || CppPreferences.getGenOptions();
 
-						// If path is not assigned, popup Open Dialog to select a folder
-						if (!path) {
-							FileSystem.showOpenDialog(false, true, "Select a folder where generated codes to be located", null, null, function (err, files) {
-								if (!err) {
-									if (files.length > 0) {
-										path = files[0];
-										CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
-									} else {
-										result.reject(FileSystem.USER_CANCELED);
-									}
-								} else {
-									result.reject(err);
-								}
-							});
-						} else {
-							CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
-						}
-					} else {
-						result.reject();
-					}
-				});
-		} else {
-			// If path is not assigned, popup Open Dialog to select a folder
-			if (!path) {
-				FileSystem.showOpenDialog(false, true, "Select a folder where generated codes to be located", null, null, function (err, files) {
-					if (!err) {
-						if (files.length > 0) {
-							path = files[0];
-							CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
-						} else {
-							result.reject(FileSystem.USER_CANCELED);
-						}
-					} else {
-						result.reject(err);
-					}
-				});
-			} else {
-				CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
-			}
-		}
-		return result.promise();
-	}
+        // If base is not assigned, popup ElementPicker
+        if (!base) {
+            ElementPickerDialog.showDialog("Select a base model to generate codes", null, type.UMLPackage)
+                .done(function (buttonId, selected) {
+                    if (buttonId === Dialogs.DIALOG_BTN_OK && selected) {
+                        base = selected;
 
-    
+                        // If path is not assigned, popup Open Dialog to select a folder
+                        if (!path) {
+                            FileSystem.showOpenDialog(false, true, "Select a folder where generated codes to be located", null, null, function (err, files) {
+                                if (!err) {
+                                    if (files.length > 0) {
+                                        path = files[0];
+                                        CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
+                                    } else {
+                                        result.reject(FileSystem.USER_CANCELED);
+                                    }
+                                } else {
+                                    result.reject(err);
+                                }
+                            });
+                        } else {
+                            CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
+                        }
+                    } else {
+                        result.reject();
+                    }
+                });
+        } else {
+            // If path is not assigned, popup Open Dialog to select a folder
+            if (!path) {
+                FileSystem.showOpenDialog(false, true, "Select a folder where generated codes to be located", null, null, function (err, files) {
+                    if (!err) {
+                        if (files.length > 0) {
+                            path = files[0];
+                            CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
+                        } else {
+                            result.reject(FileSystem.USER_CANCELED);
+                        }
+                    } else {
+                        result.reject(err);
+                    }
+                });
+            } else {
+                CppCodeGenerator.generate(base, path, options).then(result.resolve, result.reject);
+            }
+        }
+        return result.promise();
+    }
+
+
       /**
      * Command Handler for C++ Reverse
      *
@@ -144,40 +144,42 @@ define(function (require, exports, module) {
     function _handleConfigure() {
         CommandManager.execute(Commands.FILE_PREFERENCES, CsharpPreferences.getId());
     }
-    
-    
-	function _handleConfigure() {
-		CommandManager.execute(Commands.FILE_PREFERENCES, CppPreferences.getId());
-	}
 
-	CommandManager.register("C++",             CMD_CPP,           CommandManager.doNothing);
-	CommandManager.register("Generate Code...", CMD_CPP_GENERATE,  _handleGenerate);
-	CommandManager.register("Reverse Code...",  CMD_CPP_REVERSE,   _handleReverse);
-	CommandManager.register("Configure...",     CMD_CPP_CONFIGURE, _handleConfigure);
 
-	var menu, menuItem;
-	menu = MenuManager.getMenu(Commands.TOOLS);
-	menuItem = menu.addMenuItem(CMD_CPP);
-	menuItem.addMenuItem(CMD_CPP_GENERATE);
-	menuItem.addMenuItem(CMD_CPP_REVERSE);
-	menuItem.addMenuDivider();
-	menuItem.addMenuItem(CMD_CPP_CONFIGURE);
-    
-    // for debug 
-    
+    function _handleConfigure() {
+        CommandManager.execute(Commands.FILE_PREFERENCES, CppPreferences.getId());
+    }
+
+    CommandManager.register("C++",             CMD_CPP,           CommandManager.doNothing);
+    CommandManager.register("Generate Code...", CMD_CPP_GENERATE,  _handleGenerate);
+    CommandManager.register("Reverse Code...",  CMD_CPP_REVERSE,   _handleReverse);
+    CommandManager.register("Configure...",     CMD_CPP_CONFIGURE, _handleConfigure);
+
+    var menu, menuItem;
+    menu = MenuManager.getMenu(Commands.TOOLS);
+    menuItem = menu.addMenuItem(CMD_CPP);
+    menuItem.addMenuItem(CMD_CPP_GENERATE);
+    menuItem.addMenuItem(CMD_CPP_REVERSE);
+    menuItem.addMenuDivider();
+    menuItem.addMenuItem(CMD_CPP_CONFIGURE);
+
+    // for debug
+    /*
     var getCurrentTime = function () {
-        var currentdate = new Date(); 
+        var currentdate = new Date();
         var datetime = "Last Sync: " + currentdate.getDate() + "/"
-                + (currentdate.getMonth()+1)  + "/" 
-                + currentdate.getFullYear() + " @ "  
-                + currentdate.getHours() + ":"  
-                + currentdate.getMinutes() + ":" 
+                + (currentdate.getMonth()+1)  + "/"
+                + currentdate.getFullYear() + " @ "
+                + currentdate.getHours() + ":"
+                + currentdate.getMinutes() + ":"
                 + currentdate.getSeconds();
         return datetime;
-    }    
+    }
     console.log("================================================");
     console.log("Cpp Code Generator Plugin.");
     console.log("Version time - " + CppCodeGenerator.getVersion() );
     console.log(getCurrentTime());
     console.log("================================================");
+    */
+
 });
