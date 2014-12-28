@@ -1,4 +1,4 @@
-Cpp Extension for StarUML 2 
+Cpp Extension for StarUML 2
 ============================
 This extension for StarUML(http://staruml.io) support to generate Cpp code from UML model.
 
@@ -11,7 +11,7 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 
 * converted to _Cpp Class_. (as a separate `.h` file)
 * `visibility` to one of modifiers `public`, `protected`, `private`. If visibility is not setted, consider as `protected`.
-* `isFinalSpecification` and `isLeaf` property to `final` modifier.
+* `isFinalSpecialization` and `isLeaf` property to `final` modifier.
 * Default constructor is generated.
 * All contained types (_UMLClass_, _UMLInterface_, _UMLEnumeration_) are generated as inner type definition.
 * TemplateParameter to _Cpp Template_.
@@ -54,10 +54,10 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 | Tuesday       |
 | Saturday      |
 
-converts 
+converts
 
 ```c
-/* Test header @ toori67 
+/* Test header @ toori67
  * This is Test
  * also test
  * also test again
@@ -109,9 +109,9 @@ Belows are the rules to convert from C++ source code to UML model elements.
 * Class name to `name` property.
 * Type parameters to _UMLTemplateParameter_.
 * Access modifier `public`, `protected` and  `private` to `visibility` property.
-* `abstract` modifier to `isAbstract` property.  
+* `abstract` modifier to `isAbstract` property.
 * Constructors to _UMLOperation_ with stereotype `<<constructor>>`.
-* All contained types (_UMLClass_, _UMLInterface_, _UMLEnumeration_) are generated as inner type definition. 
+* All contained types (_UMLClass_, _UMLInterface_, _UMLEnumeration_) are generated as inner type definition.
 
 
 ### C++ Field (to UMLAttribute)
@@ -123,9 +123,9 @@ Belows are the rules to convert from C++ source code to UML model elements.
     * `T[]`(array) or its decendants: `type` property refers to `T` with multiplicity `*`.
     * `T` (User-Defined Types)  : `type` property refers to the `T` type.
     * Otherwise : `type` property has the type name as string.
-    
+
 * Access modifier `public`, `protected` and  `private` to `visibility` property.
-* `static` modifier to `isStatic` property. 
+* `static` modifier to `isStatic` property.
 * Initial value to `defaultValue` property.
 
 ### C++ Field (to UMLAssociation)
@@ -137,7 +137,7 @@ Belows are the rules to convert from C++ source code to UML model elements.
     * `T` (User-Defined Types)  : `reference` property refers to the `T` type.
     * Otherwise : converted to _UMLAttribute_, not _UMLAssociation_.
 
-* Access modifier `public`, `protected` and  `private` to `visibility` property. 
+* Access modifier `public`, `protected` and  `private` to `visibility` property.
 
 ### C++ Method
 
@@ -145,16 +145,16 @@ Belows are the rules to convert from C++ source code to UML model elements.
 * Type parameters to _UMLTemplateParameter_.
 * Access modifier `public`, `protected` and  `private` to `visibility` property.
 * `static` modifier to `isStatic` property.
-* `abstract` modifier to `isAbstract` property. 
- 
+* `abstract` modifier to `isAbstract` property.
+
 
 ### C++ Enum
 
 * converted to _UMLEnumeration_.
 * Enum name to `name` property.
 * Type parameters to _UMLTemplateParameter_.
-* Access modifier `public`, `protected` and  `private` to `visibility` property. 
- 
+* Access modifier `public`, `protected` and  `private` to `visibility` property.
+
 ---
 
 Licensed under the MIT license (see LICENSE file).

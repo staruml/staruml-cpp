@@ -189,7 +189,7 @@ define(function (require, exports, module) {
 
 
             var finalModifier = "";
-            if (elem.isFinalSpecification === true || elem.isLeaf === true) {
+            if (elem.isFinalSpecialization === true || elem.isLeaf === true) {
                 finalModifier = " final ";
             }
             var templatePart = cppCodeGen.getTemplateParameter(elem);
