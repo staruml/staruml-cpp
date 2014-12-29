@@ -1,10 +1,10 @@
 {
     "name": "staruml.cplus",
     "title": "C++",
-    "description": "c++ code generation and reverse engineering.",
+    "description": "C++ code generation and reverse engineering.",
     "homepage": "https://github.com/staruml/Cpp",
     "keywords": ["c++"],
-    "version": "0.8.0",
+    "version": "0.9.0",
     "author": {
         "name": "Dongjoon Lee",
         "email": "joon1251@gmail.com",
