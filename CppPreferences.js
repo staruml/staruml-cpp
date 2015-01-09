@@ -13,14 +13,14 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 50, regexp: true */
-/*global define, $, _, window, appshell, staruml */
+/*global define, $, _, window, appshell, app */
 
 define(function (require, exports, module) {
     "use strict";
 
-    var AppInit           = staruml.getModule("utils/AppInit"),
-        Core              = staruml.getModule("core/Core"),
-        PreferenceManager = staruml.getModule("core/PreferenceManager");
+    var AppInit           = app.getModule("utils/AppInit"),
+        Core              = app.getModule("core/Core"),
+        PreferenceManager = app.getModule("core/PreferenceManager");
 
     var preferenceId = "Cpp";
 

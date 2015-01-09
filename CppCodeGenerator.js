@@ -23,7 +23,7 @@
  */
 
 /*jslint vars: true, plusplus: true, devel: true, nomen: true, indent: 4, maxerr: 50, regexp: true */
-/*global define, $, _, window, staruml, type, document, cpp */
+/*global define, $, _, window, app, type, document, cpp */
 
 define(function (require, exports, module) {
     "use strict";
@@ -35,13 +35,13 @@ define(function (require, exports, module) {
     var _CPP_PROTECTED_MOD = "protected";
     var _CPP_PRIVATE_MOD = "private";
 
-    var Repository = staruml.getModule("core/Repository"),
+    var Repository     = app.getModule("core/Repository"),
         ProjectManager = app.getModule("engine/ProjectManager"),
-        Engine     = staruml.getModule("engine/Engine"),
-        FileSystem = staruml.getModule("filesystem/FileSystem"),
-        FileUtils  = staruml.getModule("file/FileUtils"),
-        Async      = staruml.getModule("utils/Async"),
-        UML        = staruml.getModule("uml/UML");
+        Engine         = app.getModule("engine/Engine"),
+        FileSystem     = app.getModule("filesystem/FileSystem"),
+        FileUtils      = app.getModule("file/FileUtils"),
+        Async          = app.getModule("utils/Async"),
+        UML            = app.getModule("uml/UML");
 
     var CodeGenUtils = require("CodeGenUtils");
 
