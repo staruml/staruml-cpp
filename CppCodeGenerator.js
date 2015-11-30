@@ -589,11 +589,11 @@ define(function (require, exports, module) {
             var inputParamStrings = [];
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
-                inputParamStrings.push(inputParam.type + " " + inputParam.name);
+                inputParamStrings.push(this.getType(inputParam) + " " + inputParam.name);
                 docs += "\n@param " + inputParam.name;
             }
 
-            methodStr += ((returnTypeParam.length > 0) ? returnTypeParam[0].type : "void") + " ";
+            methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
 
             if (isCppBody) {
                 var t_elem = elem;
