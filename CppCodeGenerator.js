@@ -614,7 +614,7 @@ define(function (require, exports, module) {
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")" + " {\n";
                 if (returnTypeParam.length > 0) {
-                    var returnType = returnTypeParam[0].type;
+                    var returnType = this.getType(returnTypeParam[0]);
                     if (returnType === "boolean" || returnType === "bool") {
                         methodStr += indentLine + "return false;";
                     } else if (returnType === "int" || returnType === "long" || returnType === "short" || returnType === "byte") {
