@@ -4,7 +4,7 @@
     "description": "C++ code generation and reverse engineering.",
     "homepage": "https://github.com/staruml/Cpp",
     "keywords": ["c++"],
-    "version": "0.9.0",
+    "version": "0.9.1",
     "author": {
         "name": "Dongjoon Lee",
         "email": "joon1251@gmail.com",
