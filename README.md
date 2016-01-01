@@ -94,7 +94,7 @@ C++ Reverse Engineering
 ------------------------
 
 1. Click the menu (`Tools > C++ > Reverse Code...`)
-2. Select a folder containing C# source files to be converted to UML model elements.
+2. Select a folder containing C++ source files to be converted to UML model elements.
 3. `CppReverse` model will be created in the Project.
 
 Belows are the rules to convert from C++ source code to UML model elements.
