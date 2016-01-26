@@ -734,9 +734,9 @@ define(function (require, exports, module) {
         if (elem.multiplicity) {
             if (_.contains(["0..*", "1..*", "*"], elem.multiplicity.trim())) {
                 if (elem.isOrdered === true) {
-                    _type = "Vector<" + _type + ">";
+                    _type = "vector<" + _type + ">";
                 } else {
-                    _type = "Vector<" + _type + ">";
+                    _type = "vector<" + _type + ">";
                 }
             } else if (elem.multiplicity !== "1" && elem.multiplicity.match(/^\d+$/)) { // number
                 //TODO check here
