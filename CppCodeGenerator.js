@@ -593,7 +593,8 @@ define(function (require, exports, module) {
                 docs += "\n@param " + inputParam.name;
             }
 
-            methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
+            if (elem.stereotype != "create" && elem.stereotype != "destroy")
+                 methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
 
             if (isCppBody) {
                 var t_elem = elem;
@@ -611,7 +612,7 @@ define(function (require, exports, module) {
                 }
 
                 methodStr += specifier;
-                methodStr += elem.name;
+                methodStr += ((elem.stereotype == "destroy") ? "~" : "") + elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")" + " {\n";
                 if (returnTypeParam.length > 0) {
                     var returnType = this.getType(returnTypeParam[0]);
@@ -634,7 +635,7 @@ define(function (require, exports, module) {
                 }
                 methodStr += "\n}";
             } else {
-                methodStr += elem.name;
+                methodStr += ((elem.stereotype == "destroy") ? "~" : "") + elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")";
 
                 if (elem.isLeaf === true) {
