@@ -118,7 +118,7 @@ define(function (require, exports, module) {
             for (i = 0; i < modifierList.length; i++) {
                 modifierStr += modifierList[i] + " ";
             }
-            codeWriter.writeLine(modifierStr + "enum " + elem.name + " { "  + _.pluck(elem.literals, 'name').join(", ")  + " };");
+            codeWriter.writeLine(modifierStr + "enum " + elem.name + " {\n\t" + _.pluck(elem.literals, 'name').join(",\n\t") + "\n};");
         };
 
         var writeClassHeader = function (codeWriter, elem, cppCodeGen) {
@@ -127,7 +127,7 @@ define(function (require, exports, module) {
                 var i;
                 for (i = 0; i < items.length; i++) {
                     var item = items[i];
-                    if (item instanceof type.UMLAttribute ||  item instanceof type.UMLAssociationEnd) { // if write member variable
+                    if (item instanceof type.UMLAttribute || item instanceof type.UMLAssociationEnd) { // if write member variable
                         codeWriter.writeLine(cppCodeGen.getMemberVariable(item));
                     } else if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, false));
@@ -197,7 +197,7 @@ define(function (require, exports, module) {
                 codeWriter.writeLine(templatePart);
             }
 
-            codeWriter.writeLine("class " + elem.name + finalModifier + writeInheritance(elem) + " {");
+            codeWriter.writeLine("class " + elem.name + finalModifier + writeInheritance(elem) + "\n{");
             if (classfiedAttributes._public.length > 0) {
                 codeWriter.writeLine("public: ");
                 codeWriter.indent();
@@ -256,7 +256,7 @@ define(function (require, exports, module) {
             // parsing class
             var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0));
             var docs = elem.name + " implementation\n\n";
-            if(_.isString(elem.documentation)) {
+            if (_.isString(elem.documentation)) {
                 docs += elem.documentation;
             }
             codeWriter.writeLine(cppCodeGen.getDocuments(docs));
@@ -278,10 +278,10 @@ define(function (require, exports, module) {
         };
 
         var result = new $.Deferred(),
-        self = this,
-        fullPath,
-        directory,
-        file;
+            self = this,
+            fullPath,
+            directory,
+            file;
 
         // Package -> as namespace or not
         if (elem instanceof type.UMLPackage) {
@@ -376,8 +376,23 @@ define(function (require, exports, module) {
 
         codeWriter.writeLine(copyrightHeader);
         codeWriter.writeLine();
-        codeWriter.writeLine("#include \"" +  elem.name + ".h\"");
+        codeWriter.writeLine("#include \"" + elem.name + ".h\"");
         codeWriter.writeLine();
+
+        var i;
+        var associatedMemberType = this.getAssociatedMemberType(elem);
+
+        // check for member variable
+        if (associatedMemberType.length > 0) {
+            codeWriter.writeLine("/* For member variable class */");
+        }
+
+        for (i = 0; i < associatedMemberType.length; i++) {
+            var target = associatedMemberType[i];
+            codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+        }
+        codeWriter.writeLine();
+
         funct(codeWriter, elem, this);
         return codeWriter.getData();
     };
@@ -411,6 +426,72 @@ define(function (require, exports, module) {
         return returnTemplateString;
     };
 
+    CppCodeGenerator.prototype.trackingHeader = function (elem, target) {
+        var header = "";
+        var elementString = "";
+        var targetString = "";
+        var i;
+
+        while (elem._parent._parent !== null) {
+            elementString = (elementString.length !== 0) ? elem.name + "/" + elementString : elem.name;
+            elem = elem._parent;
+        }
+        while (target._parent._parent !== null) {
+            targetString = (targetString.length !== 0) ? target.name + "/" + targetString : target.name;
+            target = target._parent;
+        }
+
+        var idx;
+        for (i = 0; i < (elementString.length < targetString.length) ? elementString.length : targetString.length; i++) {
+
+            if (elementString[i] === targetString[i]) {
+                if (elementString[i] === '/' && targetString[i] === '/') {
+                    idx = i + 1;
+                }
+            } else {
+                break;
+            }
+        }
+        // remove common path
+        elementString = elementString.substring(idx, elementString.length);
+        targetString = targetString.substring(idx, targetString.length);
+
+        for (i = 0; i < elementString.split('/').length - 1; i++) {
+            header += "../";
+        }
+        header += targetString;
+
+        return header;
+    };
+
+    CppCodeGenerator.prototype.getAssociatedMemberType = function (elem) {
+        if (Repository.getRelationshipsOf(elem).length > 0) {
+            var i;
+            var associatedMemberType = [];
+
+            var associations = Repository.getRelationshipsOf(elem, function (rel) {
+                return (rel instanceof type.UMLAssociation);
+            });
+
+            for (i = 0; i < associations.length; i++) {
+                var asso = associations[i];
+                var target;
+                if (asso.end1.reference === elem && asso.end2.navigable === true && asso.end2.name.length !== 0) {
+                    target = asso.end2.reference;
+                } else if (asso.end2.reference === elem && asso.end1.navigable === true && asso.end1.name.length !== 0) {
+                    target = asso.end1.reference;
+                } else {
+                    continue;
+                }
+                if (target === elem) {
+                    continue;
+                }
+                associatedMemberType.push(target);
+            }
+            return associatedMemberType;
+        }
+    };
+
     /**
      * Parsing include header
      *
@@ -420,53 +501,13 @@ define(function (require, exports, module) {
     CppCodeGenerator.prototype.getIncludePart = function (elem) {
 
         var i;
-        var trackingHeader = function (elem, target) {
-            var header = "";
-            var elementString = "";
-            var targetString = "";
-            var i;
-
-
-            while (elem._parent._parent !== null) {
-                elementString = (elementString.length !== 0) ?  elem.name + "/" + elementString : elem.name;
-                elem = elem._parent;
-            }
-            while (target._parent._parent !== null) {
-                targetString = (targetString.length !== 0) ?  target.name + "/" + targetString : target.name;
-                target = target._parent;
-            }
-
-            var idx;
-            for (i = 0; i < (elementString.length < targetString.length) ? elementString.length : targetString.length; i++) {
-
-                if (elementString[i] === targetString[i]) {
-                    if (elementString[i] === '/' && targetString[i] === '/') {
-                        idx = i + 1;
-                    }
-                } else {
-                    break;
-                }
-            }
-            // remove common path
-            elementString = elementString.substring(idx, elementString.length);
-            targetString = targetString.substring(idx, targetString.length);
-
-            for (i = 0; i < elementString.split('/').length - 1; i++) {
-                header += "../";
-            }
-            header += targetString;
-
-            return header;
-        };
-
 
         var headerString = "";
+        var memberString = "";
+
         if (Repository.getRelationshipsOf(elem).length <= 0) {
             return "";
         }
-        var associations = Repository.getRelationshipsOf(elem, function (rel) {
-            return (rel instanceof type.UMLAssociation);
-        });
         var realizations = Repository.getRelationshipsOf(elem, function (rel) {
             return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization);
         });
@@ -477,27 +518,22 @@ define(function (require, exports, module) {
             if (realize.target === elem) {
                 continue;
             }
-            headerString += "#include \"" + trackingHeader(elem, realize.target) + ".h\"\n";
+            headerString += "#include \"" + this.trackingHeader(elem, realize.target) + ".h\"\n";
         }
+
+        var associatedMemberType = this.getAssociatedMemberType(elem);
 
         // check for member variable
-        for (i = 0; i < associations.length; i++) {
-            var asso = associations[i];
-            var target;
-            if (asso.end1.reference === elem && asso.end2.navigable === true && asso.end2.name.length !== 0) {
-                target = asso.end2.reference;
-            } else if (asso.end2.reference === elem && asso.end1.navigable === true && asso.end1.name.length !== 0) {
-                target = asso.end1.reference;
-            } else {
-                continue;
-            }
-            if (target === elem) {
-                continue;
-            }
-            headerString += "#include \"" + trackingHeader(elem, target) + ".h\"\n";
+        if (associatedMemberType.length > 0) {
+            memberString = "\n/* For member variable class */\n";
         }
 
-        return headerString;
+        for (i = 0; i < associatedMemberType.length; i++) {
+            var target = associatedMemberType[i];
+            memberString += "class " + target.name + ";\n";
+        }
+
+        return headerString + memberString;
     };
 
     /**
@@ -526,7 +562,7 @@ define(function (require, exports, module) {
             }
         }
         return {
-            _public : public_list,
+            _public: public_list,
             _protected: protected_list,
             _private: private_list
         };
@@ -540,23 +576,11 @@ define(function (require, exports, module) {
      */
     CppCodeGenerator.prototype.getMemberVariable = function (elem) {
         if (elem.name.length > 0) {
-            var terms = [];
+            var terms = this.getVariableDeclaration(elem, false);
             // doc
             var docs = this.getDocuments(elem.documentation);
-            // modifiers
-            var _modifiers = this.getModifiers(elem);
-            if (_modifiers.length > 0) {
-                terms.push(_modifiers.join(" "));
-            }
-            // type
-            terms.push(this.getType(elem));
-            // name
-            terms.push(elem.name);
-            // initial value
-            if (elem.defaultValue && elem.defaultValue.length > 0) {
-                terms.push("= " + elem.defaultValue);
-            }
-            return (docs + terms.join(" ") + ";");
+
+            return (docs + terms + ";");
         }
     };
 
@@ -589,7 +613,7 @@ define(function (require, exports, module) {
             var inputParamStrings = [];
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
-                inputParamStrings.push(this.getType(inputParam) + " " + inputParam.name);
+                inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody));
                 docs += "\n@param " + inputParam.name;
             }
 
@@ -678,12 +702,12 @@ define(function (require, exports, module) {
      */
     CppCodeGenerator.prototype.getVisibility = function (elem) {
         switch (elem.visibility) {
-        case UML.VK_PUBLIC:
-            return "public";
-        case UML.VK_PROTECTED:
-            return "protected";
-        case UML.VK_PRIVATE:
-            return "private";
+            case UML.VK_PUBLIC:
+                return "public";
+            case UML.VK_PROTECTED:
+                return "protected";
+            case UML.VK_PRIVATE:
+                return "private";
         }
         return null;
     };
@@ -721,6 +745,29 @@ define(function (require, exports, module) {
         if (elem instanceof type.UMLAssociationEnd) { // member variable from association
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
                 _type = elem.reference.name;
+
+                var associations = Repository.getRelationshipsOf(elem.reference, function (rel) {
+                    return (rel instanceof type.UMLAssociation);
+                });
+
+                var selfElem;
+                var i;
+
+                for (i = 0; i < associations.length; i++) {
+                    var asso = associations[i];
+
+                    if (asso.end1 === elem) {
+                        selfElem = asso.end2;
+                        break;
+                    } else if (asso.end2 === elem) {
+                        selfElem = asso.end1;
+                        break;
+                    }
+                }
+
+                if (selfElem.aggregation !== UML.AK_COMPOSITE) {
+                    _type += "*";
+                }
             }
         } else { // member variable inside class
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
@@ -730,20 +777,57 @@ define(function (require, exports, module) {
             }
         }
 
+        return _type;
+    };
+
+    /**
+     * generate variable/parameter declaration
+     *
+     * @param {Object} elem
+     * @param {boolean} isCppBody
+     * @return {Object} string
+     */
+    CppCodeGenerator.prototype.getVariableDeclaration = function (elem, isCppBody) {
+        var vDeclaration = [];
+
+        // modifiers
+        var vModifiers = this.getModifiers(elem);
+        if (vModifiers.length > 0) {
+            vDeclaration.push(vModifiers.join(" "));
+        }
+
+        // type
+        var vType = this.getType(elem);
+
+        // name
+        var vName = elem.name;
+
         // multiplicity
         if (elem.multiplicity) {
             if (_.contains(["0..*", "1..*", "*"], elem.multiplicity.trim())) {
-                if (elem.isOrdered === true) {
-                    _type = "vector<" + _type + ">";
+                vType = "vector<" + vType + ">";
+            } else if (elem.multiplicity !== "1") {
+                if (elem.multiplicity.match(/^\d+$/)) { // number
+                    vName += "[" + elem.multiplicity + "]";
                 } else {
-                    _type = "vector<" + _type + ">";
+                    vName += "[]";
                 }
-            } else if (elem.multiplicity !== "1" && elem.multiplicity.match(/^\d+$/)) { // number
-                //TODO check here
-                _type += "[]";
             }
         }
-        return _type;
+
+        // vType or vName can be modified by the multiplicity computation
+        vDeclaration.push(vType);
+        vDeclaration.push(vName);
+
+        // if parameter, Default value is not generated in body of the class
+        if (isCppBody === false) {
+            // initial value
+            if (elem.defaultValue && elem.defaultValue.length > 0) {
+                vDeclaration.push("= " + elem.defaultValue);
+            }
+        }
+
+        return vDeclaration.join(" ");
     };
 
     /**
@@ -767,7 +851,7 @@ define(function (require, exports, module) {
         return cppCodeGenerator.generate(baseModel, basePath, options);
     }
 
-    function getVersion() {return versionString; }
+    function getVersion() { return versionString; }
 
     exports.generate = generate;
     exports.getVersion = getVersion;
