@@ -35,13 +35,13 @@ define(function (require, exports, module) {
     var _CPP_PROTECTED_MOD = "protected";
     var _CPP_PRIVATE_MOD = "private";
 
-    var Repository     = app.getModule("core/Repository"),
+    var Repository = app.getModule("core/Repository"),
         ProjectManager = app.getModule("engine/ProjectManager"),
-        Engine         = app.getModule("engine/Engine"),
-        FileSystem     = app.getModule("filesystem/FileSystem"),
-        FileUtils      = app.getModule("file/FileUtils"),
-        Async          = app.getModule("utils/Async"),
-        UML            = app.getModule("uml/UML");
+        Engine = app.getModule("engine/Engine"),
+        FileSystem = app.getModule("filesystem/FileSystem"),
+        FileUtils = app.getModule("file/FileUtils"),
+        Async = app.getModule("utils/Async"),
+        UML = app.getModule("uml/UML");
 
     var CodeGenUtils = require("CodeGenUtils");
 
@@ -384,14 +384,28 @@ define(function (require, exports, module) {
 
         // check for member variable
         if (associatedMemberType.length > 0) {
-            codeWriter.writeLine("/* For member variable class */");
+            codeWriter.writeLine("/* For association member class */");
+
+            for (i = 0; i < associatedMemberType.length; i++) {
+                var target = associatedMemberType[i];
+                codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+            }
+            codeWriter.writeLine();
         }
 
-        for (i = 0; i < associatedMemberType.length; i++) {
-            var target = associatedMemberType[i];
-            codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+        // check for dependencies class
+        var dependencies = elem.getDependencies();
+
+        if (dependencies.length > 0) {
+
+            for (i = 0; i < dependencies.length; i++) {
+                var target = dependencies[i];
+                if (associatedMemberType.contains(target) === false) {
+                    codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+                }
+            }
+            codeWriter.writeLine();
         }
-        codeWriter.writeLine();
 
         funct(codeWriter, elem, this);
         return codeWriter.getData();
@@ -504,6 +518,7 @@ define(function (require, exports, module) {
 
         var headerString = "";
         var memberString = "";
+        var dependenciesString = "";
 
         if (Repository.getRelationshipsOf(elem).length <= 0) {
             return "";
@@ -521,19 +536,38 @@ define(function (require, exports, module) {
             headerString += "#include \"" + this.trackingHeader(elem, realize.target) + ".h\"\n";
         }
 
+        // check for association member variable
         var associatedMemberType = this.getAssociatedMemberType(elem);
 
-        // check for member variable
         if (associatedMemberType.length > 0) {
-            memberString = "\n/* For member variable class */\n";
+            memberString = "\n/* For association member class */\n";
+
+            for (i = 0; i < associatedMemberType.length; i++) {
+                var target = associatedMemberType[i];
+                memberString += "class " + target.name + ";\n";
+            }
         }
 
-        for (i = 0; i < associatedMemberType.length; i++) {
-            var target = associatedMemberType[i];
-            memberString += "class " + target.name + ";\n";
+        // check for dependencies class
+        var dependencies = elem.getDependencies();
+
+        if (dependencies.length > 0) {
+            var depRegistered = 0;
+
+            for (i = 0; i < dependencies.length; i++) {
+                var target = dependencies[i];
+                if (associatedMemberType.contains(target) === false) {
+                    dependenciesString += "class " + target.name + ";\n";
+                    depRegistered++;
+                }
+            }
+
+            if (depRegistered > 0) {
+                dependenciesString = "\n/* For dependencies class */\n" + dependenciesString;
+            }
         }
 
-        return headerString + memberString;
+        return headerString + memberString + dependenciesString;
     };
 
     /**
@@ -805,7 +839,11 @@ define(function (require, exports, module) {
         // multiplicity
         if (elem.multiplicity) {
             if (_.contains(["0..*", "1..*", "*"], elem.multiplicity.trim())) {
-                vType = "vector<" + vType + ">";
+                if (this.genOptions.useVector) {
+                    vType = "vector<" + vType + ">";
+                } else {
+                    vType += "*";
+                }
             } else if (elem.multiplicity !== "1") {
                 if (elem.multiplicity.match(/^\d+$/)) { // number
                     vName += "[" + elem.multiplicity + "]";
