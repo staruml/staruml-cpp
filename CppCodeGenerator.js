@@ -542,10 +542,11 @@ define(function (require, exports, module) {
         var associatedMemberType = this.getAssociatedMemberType(elem);
 
         if (associatedMemberType.length > 0) {
-            memberString = "\n/* For association member class */\n";
-
             for (i = 0; i < associatedMemberType.length; i++) {
                 var target = associatedMemberType[i];
+                if (realizationsComp.contains(target)) {
+                    continue;
+                }
                 memberString += "class " + target.name + ";\n";
                 this._associationClass.push(target);
             }
@@ -555,23 +556,17 @@ define(function (require, exports, module) {
         var dependencies = elem.getDependencies();
 
         if (dependencies.length > 0) {
-            var depRegisteredNb = 0;
-
             for (i = 0; i < dependencies.length; i++) {
                 var target = dependencies[i];
-                if (associatedMemberType.contains(target) === false && realizationsComp.contains(target) === false) {
-                    dependenciesString += "class " + target.name + ";\n";
-                    this._associationClass.push(target);
-                    depRegisteredNb++;
+                if (this._associationClass.contains(target) || realizationsComp.contains(target)) {
+                    continue;
                 }
-            }
-
-            if (depRegisteredNb > 0) {
-                dependenciesString = "\n/* For dependencies class */\n" + dependenciesString;
+                dependenciesString += "class " + target.name + ";\n";
+                this._associationClass.push(target);
             }
         }
 
-        return headerString + memberString + dependenciesString;
+        return headerString + "\n" + memberString + dependenciesString;
     };
 
     /**
@@ -813,6 +808,10 @@ define(function (require, exports, module) {
             } else if (_.isString(elem.type) && elem.type.length > 0) {
                 _type = elem.type;
             }
+
+            if (elem.aggregation === UML.AK_SHARED) {
+                _type += "*";
+            }
         }
 
         return _type;
@@ -848,7 +847,7 @@ define(function (require, exports, module) {
                 } else {
                     vType += "*";
                 }
-            } else if (elem.multiplicity !== "1") {
+            } else if (elem.multiplicity !== "1" && elem.multiplicity !== "0..1") {
                 if (elem.multiplicity.match(/^\d+$/)) { // number
                     vName += "[" + elem.multiplicity + "]";
                 } else {
