@@ -100,6 +100,7 @@ define(function (require, exports, module) {
     CppCodeGenerator.prototype.generate = function (elem, path, options) {
 
         this.genOptions = options;
+        this._associationClass = [];
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -392,30 +393,14 @@ define(function (require, exports, module) {
         codeWriter.writeLine("#include \"" + elem.name + ".h\"");
         codeWriter.writeLine();
 
-        var i;
-        var associatedMemberType = this.getAssociatedMemberType(elem);
-
         // check for member variable
-        if (associatedMemberType.length > 0) {
-            codeWriter.writeLine("/* For association member class */");
+        if (this._associationClass.length > 0) {
+            codeWriter.writeLine("/* For association */");
+            var i;
 
-            for (i = 0; i < associatedMemberType.length; i++) {
-                var target = associatedMemberType[i];
+            for (i = 0; i < this._associationClass.length; i++) {
+                var target = this._associationClass[i];
                 codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
-            }
-            codeWriter.writeLine();
-        }
-
-        // check for dependencies class
-        var dependencies = elem.getDependencies();
-
-        if (dependencies.length > 0) {
-
-            for (i = 0; i < dependencies.length; i++) {
-                var target = dependencies[i];
-                if (associatedMemberType.contains(target) === false) {
-                    codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
-                }
             }
             codeWriter.writeLine();
         }
@@ -562,6 +547,7 @@ define(function (require, exports, module) {
             for (i = 0; i < associatedMemberType.length; i++) {
                 var target = associatedMemberType[i];
                 memberString += "class " + target.name + ";\n";
+                this._associationClass.push(target);
             }
         }
 
@@ -575,6 +561,7 @@ define(function (require, exports, module) {
                 var target = dependencies[i];
                 if (associatedMemberType.contains(target) === false && realizationsComp.contains(target) === false) {
                     dependenciesString += "class " + target.name + ";\n";
+                    this._associationClass.push(target);
                     depRegisteredNb++;
                 }
             }
@@ -665,7 +652,7 @@ define(function (require, exports, module) {
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
                 inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody));
-                docs += "\n@param " + inputParam.name + "\t" + inputParam.documentation;
+                docs += "\n@param " + inputParam.name + " :    " + inputParam.documentation;
             }
 
             methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
