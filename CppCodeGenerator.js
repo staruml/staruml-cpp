@@ -35,13 +35,13 @@ define(function (require, exports, module) {
     var _CPP_PROTECTED_MOD = "protected";
     var _CPP_PRIVATE_MOD = "private";
 
-    var Repository     = app.getModule("core/Repository"),
+    var Repository = app.getModule("core/Repository"),
         ProjectManager = app.getModule("engine/ProjectManager"),
-        Engine         = app.getModule("engine/Engine"),
-        FileSystem     = app.getModule("filesystem/FileSystem"),
-        FileUtils      = app.getModule("file/FileUtils"),
-        Async          = app.getModule("utils/Async"),
-        UML            = app.getModule("uml/UML");
+        Engine = app.getModule("engine/Engine"),
+        FileSystem = app.getModule("filesystem/FileSystem"),
+        FileUtils = app.getModule("file/FileUtils"),
+        Async = app.getModule("utils/Async"),
+        UML = app.getModule("uml/UML");
 
     var CodeGenUtils = require("CodeGenUtils");
 
@@ -355,8 +355,21 @@ define(function (require, exports, module) {
             codeWriter.writeLine(includePart);
             codeWriter.writeLine();
         }
+/*
+        // namespace begin
+        if (elem._parent) {
+            codeWriter.writeLine("namespace " + elem._parent.name + " {");
+            codeWriter.writeLine();
+        }
+*/
         funct(codeWriter, elem, this);
-
+/*
+        // namespace end
+        if (elem._parent) {
+            codeWriter.writeLine("} // end namespace " + elem._parent.name);
+            codeWriter.writeLine();
+        }
+*/
         codeWriter.writeLine();
         codeWriter.writeLine("#endif //" + headerString);
         return codeWriter.getData();
@@ -384,14 +397,28 @@ define(function (require, exports, module) {
 
         // check for member variable
         if (associatedMemberType.length > 0) {
-            codeWriter.writeLine("/* For member variable class */");
+            codeWriter.writeLine("/* For association member class */");
+
+            for (i = 0; i < associatedMemberType.length; i++) {
+                var target = associatedMemberType[i];
+                codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+            }
+            codeWriter.writeLine();
         }
 
-        for (i = 0; i < associatedMemberType.length; i++) {
-            var target = associatedMemberType[i];
-            codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+        // check for dependencies class
+        var dependencies = elem.getDependencies();
+
+        if (dependencies.length > 0) {
+
+            for (i = 0; i < dependencies.length; i++) {
+                var target = dependencies[i];
+                if (associatedMemberType.contains(target) === false) {
+                    codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+                }
+            }
+            codeWriter.writeLine();
         }
-        codeWriter.writeLine();
 
         funct(codeWriter, elem, this);
         return codeWriter.getData();
@@ -504,6 +531,7 @@ define(function (require, exports, module) {
 
         var headerString = "";
         var memberString = "";
+        var dependenciesString = "";
 
         if (Repository.getRelationshipsOf(elem).length <= 0) {
             return "";
@@ -512,6 +540,9 @@ define(function (require, exports, module) {
             return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization);
         });
 
+        // for dependencies comparing
+        var realizationsComp = [];
+
         // check for interface or class
         for (i = 0; i < realizations.length; i++) {
             var realize = realizations[i];
@@ -519,21 +550,41 @@ define(function (require, exports, module) {
                 continue;
             }
             headerString += "#include \"" + this.trackingHeader(elem, realize.target) + ".h\"\n";
+            realizationsComp.push(realize.target);
         }
 
+        // check for association member variable
         var associatedMemberType = this.getAssociatedMemberType(elem);
 
-        // check for member variable
         if (associatedMemberType.length > 0) {
-            memberString = "\n/* For member variable class */\n";
+            memberString = "\n/* For association member class */\n";
+
+            for (i = 0; i < associatedMemberType.length; i++) {
+                var target = associatedMemberType[i];
+                memberString += "class " + target.name + ";\n";
+            }
         }
 
-        for (i = 0; i < associatedMemberType.length; i++) {
-            var target = associatedMemberType[i];
-            memberString += "class " + target.name + ";\n";
+        // check for dependencies class
+        var dependencies = elem.getDependencies();
+
+        if (dependencies.length > 0) {
+            var depRegisteredNb = 0;
+
+            for (i = 0; i < dependencies.length; i++) {
+                var target = dependencies[i];
+                if (associatedMemberType.contains(target) === false && realizationsComp.contains(target) === false) {
+                    dependenciesString += "class " + target.name + ";\n";
+                    depRegisteredNb++;
+                }
+            }
+
+            if (depRegisteredNb > 0) {
+                dependenciesString = "\n/* For dependencies class */\n" + dependenciesString;
+            }
         }
 
-        return headerString + memberString;
+        return headerString + memberString + dependenciesString;
     };
 
     /**
@@ -593,7 +644,7 @@ define(function (require, exports, module) {
      */
     CppCodeGenerator.prototype.getMethod = function (elem, isCppBody) {
         if (elem.name.length > 0) {
-            var docs = elem.documentation;
+            var docs = "@brief " + elem.documentation;
             var i;
             var methodStr = "";
             var isVirtaul = false;
@@ -614,7 +665,7 @@ define(function (require, exports, module) {
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
                 inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody));
-                docs += "\n@param " + inputParam.name;
+                docs += "\n@param " + inputParam.name + "\t" + inputParam.documentation;
             }
 
             methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
@@ -805,7 +856,11 @@ define(function (require, exports, module) {
         // multiplicity
         if (elem.multiplicity) {
             if (_.contains(["0..*", "1..*", "*"], elem.multiplicity.trim())) {
-                vType = "vector<" + vType + ">";
+                if (this.genOptions.useVector) {
+                    vType = "vector<" + vType + ">";
+                } else {
+                    vType += "*";
+                }
             } else if (elem.multiplicity !== "1") {
                 if (elem.multiplicity.match(/^\d+$/)) { // number
                     vName += "[" + elem.multiplicity + "]";
