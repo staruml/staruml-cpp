@@ -456,15 +456,34 @@ define(function (require, exports, module) {
             return returnTemplateString;
         }
         var term = [];
-        returnTemplateString = "template<";
+        returnTemplateString = "template <";
 
         for (i = 0; i < elem.templateParameters.length; i++) {
             var template = elem.templateParameters[i];
             var templateStr = template.parameterType + " ";
-            templateStr += template.name + " ";
+            templateStr += template.name;
             if (template.defaultValue.length !== 0) {
                 templateStr += " = " + template.defaultValue;
             }
+            term.push(templateStr);
+        }
+        returnTemplateString += term.join(", ");
+        returnTemplateString += ">";
+        return returnTemplateString;
+    };
+
+    CppCodeGenerator.prototype.getTemplateParameterNames = function (elem) {
+        var i;
+        var returnTemplateString = "";
+        if (elem.templateParameters.length <= 0) {
+            return returnTemplateString;
+        }
+        var term = [];
+        returnTemplateString = "<";
+
+        for (i = 0; i < elem.templateParameters.length; i++) {
+            var template = elem.templateParameters[i];
+            var templateStr = template.name;
             term.push(templateStr);
         }
         returnTemplateString += term.join(", ");
@@ -682,11 +701,46 @@ define(function (require, exports, module) {
                 docs += "\n@param " + inputParam.name + " :    " + inputParam.documentation;
             }
 
-            methodStr += ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void") + " ";
+            var _returnType = ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void");
+            // var _rElem = returnTypeParam[0];
+            // var _returnTypeMultiplicity = _rElem.multiplicity;
+
+            // // multiplicity
+            // if (_returnTypeMultiplicity) {
+            //     if (_.contains(["0..*", "1..*", "*"], _returnTypeMultiplicity.trim())) {
+            //         if (this.genOptions.useVector) {
+            //             _returnType = "vector<" + _returnType + ">";
+            //         } else {
+            //             _returnType += "*";
+            //         }
+            //     } else if (_returnTypeMultiplicity !== "1" && _returnTypeMultiplicity !== "0..1") {
+            //         if (_returnTypeMultiplicity.match(/^\d+$/)) { // number
+            //             _returnType += "[" + _returnTypeMultiplicity + "]";
+            //         } else {
+            //             _returnType += "[]";
+            //         }
+            //     }
+            // }
+
+            methodStr += _returnType + " ";
 
             if (isCppBody) {
                 var t_elem = elem;
-                var specifier = "";
+
+                var templateSpecifier = "";
+                var templateParameter = this.getTemplateParameter(elem);
+                var parentTemplateParameter = this.getTemplateParameter(elem._parent);
+
+                if (templateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem);
+                    methodStr = templateParameter + "\n" + methodStr;
+                } else if (parentTemplateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem._parent);
+                    methodStr = parentTemplateParameter + "\n" + methodStr;
+                }
+
+                var specifier = t_elem._parent.name + templateSpecifier + "::";
+                t_elem = t_elem._parent;
 
                 while (t_elem._parent instanceof type.UMLClass) {
                     specifier = t_elem._parent.name + "::" + specifier;
