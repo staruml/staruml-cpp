@@ -28,25 +28,25 @@
 define(function (require, exports, module) {
     "use strict";
 
-    var _CPP_CODE_GEN_H = "h";
-    var _CPP_CODE_GEN_CPP = "cpp";
+    var _CPP_CODE_GEN_H     = "h";
+    var _CPP_CODE_GEN_CPP   = "cpp";
 
-    var _CPP_PUBLIC_MOD = "public";
-    var _CPP_PROTECTED_MOD = "protected";
-    var _CPP_PRIVATE_MOD = "private";
+    var _CPP_PUBLIC_MOD     = "public";
+    var _CPP_PROTECTED_MOD  = "protected";
+    var _CPP_PRIVATE_MOD    = "private";
 
-    var Repository = app.getModule("core/Repository"),
-        ProjectManager = app.getModule("engine/ProjectManager"),
-        Engine = app.getModule("engine/Engine"),
-        FileSystem = app.getModule("filesystem/FileSystem"),
-        FileUtils = app.getModule("file/FileUtils"),
-        Async = app.getModule("utils/Async"),
-        UML = app.getModule("uml/UML");
+    var Repository          = app.getModule("core/Repository"),
+        ProjectManager      = app.getModule("engine/ProjectManager"),
+        Engine              = app.getModule("engine/Engine"),
+        FileSystem          = app.getModule("filesystem/FileSystem"),
+        FileUtils           = app.getModule("file/FileUtils"),
+        Async               = app.getModule("utils/Async"),
+        UML                 = app.getModule("uml/UML");
 
-    var CodeGenUtils = require("CodeGenUtils");
+    var CodeGenUtils        = require("CodeGenUtils");
 
-    var copyrightHeader = "/* Test header @ toori67 \n * This is Test\n * also test\n * also test again\n */";
-    var versionString = "v0.0.1";
+    var copyrightHeader     = "/* Test header @ toori67 \n * This is Test\n * also test\n * also test again\n */";
+    var versionString       = "v0.0.1";
 
 
     /**
@@ -100,7 +100,6 @@ define(function (require, exports, module) {
     CppCodeGenerator.prototype.generate = function (elem, path, options) {
 
         this.genOptions = options;
-        this._associationClass = [];
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -354,23 +353,10 @@ define(function (require, exports, module) {
 
         if (includePart.length > 0) {
             codeWriter.writeLine(includePart);
-            codeWriter.writeLine();
         }
-/*
-        // namespace begin
-        if (elem._parent) {
-            codeWriter.writeLine("namespace " + elem._parent.name + " {");
-            codeWriter.writeLine();
-        }
-*/
-        funct(codeWriter, elem, this);
-/*
-        // namespace end
-        if (elem._parent) {
-            codeWriter.writeLine("} // end namespace " + elem._parent.name);
-            codeWriter.writeLine();
-        }
-*/
+      
+        this.writeHeaderNamespaces(codeWriter, elem, funct);
+
         codeWriter.writeLine();
         codeWriter.writeLine("#endif //" + headerString);
         return codeWriter.getData();
@@ -393,19 +379,67 @@ define(function (require, exports, module) {
         codeWriter.writeLine("#include \"" + elem.name + ".h\"");
         codeWriter.writeLine();
 
-        // check for member variable
-        if (this._associationClass.length > 0) {
-            codeWriter.writeLine("/* For association */");
-            var i;
+        funct(codeWriter, elem, this);
+        return codeWriter.getData();
+    };
 
-            for (i = 0; i < this._associationClass.length; i++) {
-                var target = this._associationClass[i];
-                codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+    /**
+     * get list of namespace element
+     *
+     * @param {Object} elem
+     * @return {Array <String>}
+     */
+    CppCodeGenerator.prototype.getNamespaces = function (elem) {
+        var namespaces = [];
+        var greatNamespaces = [];
+        var i;
+
+        var parentElem = elem._parent;
+        while (parentElem) {
+            if (parentElem instanceof type.UMLPackage &&
+               !(parentElem instanceof type.UMLModel) &&
+               !(parentElem instanceof type.UMLProfile)) {
+                namespaces.push(parentElem.name);
             }
-            codeWriter.writeLine();
+            parentElem = parentElem._parent;
         }
 
-        funct(codeWriter, elem, this);
+        for (i = 0; i < namespaces.length; i++) {
+            greatNamespaces.push(namespaces[(namespaces.length - 1) - i]);
+        }
+
+        return greatNamespaces;
+    };
+
+    CppCodeGenerator.prototype.getNamespacesSpecifierString = function (elem) {
+        var namespaces = this.getNamespaces(elem);
+        var namespacesString = "";
+        if (namespaces.length > 0) {
+            namespacesString += namespaces.join("::") + "::";
+        }
+        return namespacesString;
+    };
+        
+    CppCodeGenerator.prototype.writeHeaderNamespaces = function (codeWriter, elem, funct) {
+        var namespaces = this.getNamespaces(elem);
+
+        var i;
+        if (namespaces.length > 0) {
+            for (i = 0; i < namespaces.length; i++) {
+                codeWriter.writeLine("namespace " + namespaces[i] + " {");
+            }
+            codeWriter.writeLine();
+
+            funct(codeWriter, elem, this);
+
+            codeWriter.writeLine();
+            for (i = 0; i < namespaces.length; i++) {
+                codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+            }
+        } else {
+            funct(codeWriter, elem, this);
+        }
+
         return codeWriter.getData();
     };
 
@@ -511,9 +545,7 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.getIncludePart = function (elem) {
-
         var i;
-
         var headerString = "";
         var memberString = "";
         var dependenciesString = "";
@@ -525,8 +557,8 @@ define(function (require, exports, module) {
             return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization);
         });
 
-        // for dependencies comparing
-        var realizationsComp = [];
+        // for comparaison
+        var associationComp = [];
 
         // check for interface or class
         for (i = 0; i < realizations.length; i++) {
@@ -535,7 +567,7 @@ define(function (require, exports, module) {
                 continue;
             }
             headerString += "#include \"" + this.trackingHeader(elem, realize.target) + ".h\"\n";
-            realizationsComp.push(realize.target);
+            associationComp.push(realize.target);
         }
 
         // check for association member variable
@@ -544,11 +576,11 @@ define(function (require, exports, module) {
         if (associatedMemberType.length > 0) {
             for (i = 0; i < associatedMemberType.length; i++) {
                 var target = associatedMemberType[i];
-                if (realizationsComp.contains(target)) {
+                if (associationComp.contains(target)) {
                     continue;
                 }
-                memberString += "class " + target.name + ";\n";
-                this._associationClass.push(target);
+                memberString += "#include \"" + this.trackingHeader(elem, target) + ".h\"\n";
+                associationComp.push(target);
             }
         }
 
@@ -558,15 +590,15 @@ define(function (require, exports, module) {
         if (dependencies.length > 0) {
             for (i = 0; i < dependencies.length; i++) {
                 var target = dependencies[i];
-                if (this._associationClass.contains(target) || realizationsComp.contains(target)) {
+                if (associationComp.contains(target)) {
                     continue;
                 }
-                dependenciesString += "class " + target.name + ";\n";
-                this._associationClass.push(target);
+                dependenciesString += "#include \"" + this.trackingHeader(elem, target) + ".h\"\n";
+                associationComp.push(target);
             }
         }
 
-        return headerString + "\n" + memberString + dependenciesString;
+        return headerString + memberString + dependenciesString;
     };
 
     /**
@@ -660,6 +692,8 @@ define(function (require, exports, module) {
                     specifier = t_elem._parent.name + "::" + specifier;
                     t_elem = t_elem._parent;
                 }
+
+                specifier = this.getNamespacesSpecifierString(t_elem) + specifier;
 
                 var indentLine = "";
 
@@ -777,34 +811,34 @@ define(function (require, exports, module) {
 
         if (elem instanceof type.UMLAssociationEnd) { // member variable from association
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
-                _type = elem.reference.name;
+                _type = this.getNamespacesSpecifierString(elem.reference) + elem.reference.name;
 
                 var associations = Repository.getRelationshipsOf(elem.reference, function (rel) {
                     return (rel instanceof type.UMLAssociation);
                 });
 
-                var selfElem;
+                var oppositeElem;
                 var i;
 
                 for (i = 0; i < associations.length; i++) {
                     var asso = associations[i];
 
                     if (asso.end1 === elem) {
-                        selfElem = asso.end2;
+                        oppositeElem = asso.end2;
                         break;
                     } else if (asso.end2 === elem) {
-                        selfElem = asso.end1;
+                        oppositeElem = asso.end1;
                         break;
                     }
                 }
 
-                if (selfElem.aggregation !== UML.AK_COMPOSITE) {
+                if (oppositeElem.aggregation !== UML.AK_COMPOSITE) {
                     _type += "*";
                 }
             }
         } else { // member variable inside class
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
-                _type = elem.type.name;
+                _type = this.getNamespacesSpecifierString(elem.type) + elem.type.name;
             } else if (_.isString(elem.type) && elem.type.length > 0) {
                 _type = elem.type;
             }
