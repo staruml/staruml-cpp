@@ -78,6 +78,13 @@ define(function (require, exports, module) {
         copyrightHeader = this.getDocuments(doc);
     }
 
+    function OperationBody() {
+        /** @member {string} */
+        this.Id = "";
+        /** @member {string} */
+        this.Content = "";
+    }
+
     /**
      * Return Indent String based on options
      * @param {Object} options
@@ -98,6 +105,8 @@ define(function (require, exports, module) {
 
 
     CppCodeGenerator.prototype.generate = function (elem, path, options) {
+        // Contents of not overridable operation
+        this.OperationContents = [];
 
         this.genOptions = options;
 
@@ -310,7 +319,7 @@ define(function (require, exports, module) {
             // generate class cpp elem_name.cpp
             if (options.genCpp) {
                 file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_CPP));
-                FileUtils.writeText(file, this.writeBodySkeletonCode(elem, options, writeClassBody), true).then(result.resolve, result.reject);
+                FileUtils.writeText(file, this.writeBodySkeletonCode(file, elem, options, writeClassBody), true).then(result.resolve, result.reject);
             }
 
         } else if (elem instanceof type.UMLInterface) {
@@ -342,7 +351,7 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.writeHeaderSkeletonCode = function (elem, options, funct) {
-        var headerString = "_" + elem.name.toUpperCase() + "_H";
+        var headerString = "_" + elem.name.toUpperCase() + "_" + elem._id + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
         var includePart = this.getIncludePart(elem);
         codeWriter.writeLine(copyrightHeader);
@@ -366,12 +375,51 @@ define(function (require, exports, module) {
      * Write *.cpp file. Implement functor to each uml type.
      * Returns text
      *
+     * @param {Object} file
      * @param {Object} elem
      * @param {Object} options
      * @param {Object} functor
      * @return {Object} string
      */
-    CppCodeGenerator.prototype.writeBodySkeletonCode = function (elem, options, funct) {
+    CppCodeGenerator.prototype.writeBodySkeletonCode = function (file, elem, options, funct) {
+        // Catch not overridable operation contents
+        var fileContents = [];
+        FileUtils.readAsText(file)
+            .done(function (data) {
+                fileContents = data.split("\n");
+            })
+            .fail(function (err) {
+                console.error(err);
+            });
+
+        var operationBody = new OperationBody();
+        
+        for (var i = 0; i < fileContents.length; i++) {
+            var row = fileContents[i].split(" ");
+            
+            // catch the begin index
+            if (row.length !== 3 || row[0] !== "//override") {
+                continue;
+            }
+            // continue if the contents is overridable
+            if (row[1] === "true") {
+                continue;
+            }
+            
+            operationBody.Id = row[2];
+
+            i++;
+            row = fileContents[i].split(" ");
+
+            while (row[0] !== "//end") {
+                operationBody.Content += fileContents[i];
+                i++;
+                row = fileContents[i].split(" ");
+            }
+
+            OperationContents.push(operationBody);
+        }
+
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
 
         codeWriter.writeLine(copyrightHeader);
@@ -680,7 +728,6 @@ define(function (require, exports, module) {
             var docs = "@brief " + elem.documentation;
             var i;
             var methodStr = "";
-            var isVirtaul = false;
             // TODO virtual fianl static 키워드는 섞어 쓸수가 없다
             if (elem.isStatic === true) {
                 methodStr += "static ";
@@ -692,37 +739,38 @@ define(function (require, exports, module) {
                 return params.direction === "return";
             });
             var inputParams = _.filter(elem.parameters, function (params) {
-                return params.direction === "in";
+                return (params.direction === "in" || params.direction === "inout" || params.direction === "out");
             });
             var inputParamStrings = [];
             for (i = 0; i < inputParams.length; i++) {
                 var inputParam = inputParams[i];
                 inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody));
-                docs += "\n@param " + inputParam.name + " :    " + inputParam.documentation;
+                docs += "\n@param " + inputParam.name + (inputParam.documentation.length ? " :    " + inputParam.documentation : "");
             }
 
-            var _returnType = ((returnTypeParam.length > 0) ? this.getType(returnTypeParam[0]) : "void");
-            // var _rElem = returnTypeParam[0];
-            // var _returnTypeMultiplicity = _rElem.multiplicity;
+            var validReturnParam = returnTypeParam[0];
+            var returnType = ((returnTypeParam.length > 0) ? this.getType(validReturnParam) : "void");
+            // var _returnTypeMultiplicity = validReturnParam.multiplicity;
 
             // // multiplicity
             // if (_returnTypeMultiplicity) {
+            //     returnType += "bla";
             //     if (_.contains(["0..*", "1..*", "*"], _returnTypeMultiplicity.trim())) {
             //         if (this.genOptions.useVector) {
-            //             _returnType = "vector<" + _returnType + ">";
+            //             returnType = "vector<" + returnType + ">";
             //         } else {
-            //             _returnType += "*";
+            //             returnType += "*";
             //         }
             //     } else if (_returnTypeMultiplicity !== "1" && _returnTypeMultiplicity !== "0..1") {
             //         if (_returnTypeMultiplicity.match(/^\d+$/)) { // number
-            //             _returnType += "[" + _returnTypeMultiplicity + "]";
+            //             returnType += "[" + _returnTypeMultiplicity + "]";
             //         } else {
-            //             _returnType += "[]";
+            //             returnType += "[]";
             //         }
             //     }
             // }
 
-            methodStr += _returnType + " ";
+            methodStr += returnType + " ";
 
             if (isCppBody) {
                 var t_elem = elem;
@@ -749,34 +797,56 @@ define(function (require, exports, module) {
 
                 specifier = this.getNamespacesSpecifierString(t_elem) + specifier;
 
-                var indentLine = "";
-
-                for (i = 0; i < this.genOptions.indentSpaces; i++) {
-                    indentLine += " ";
-                }
+                var indentLine = this.getIndentString(this.genOptions);
 
                 methodStr += specifier;
                 methodStr += elem.name;
-                methodStr += "(" + inputParamStrings.join(", ") + ")" + " {\n";
-                if (returnTypeParam.length > 0) {
-                    var returnType = this.getType(returnTypeParam[0]);
-                    if (returnType === "boolean" || returnType === "bool") {
-                        methodStr += indentLine + "return false;";
-                    } else if (returnType === "int" || returnType === "long" || returnType === "short" || returnType === "byte") {
-                        methodStr += indentLine + "return 0;";
-                    } else if (returnType === "double" || returnType === "float") {
-                        methodStr += indentLine + "return 0.0;";
-                    } else if (returnType === "char") {
-                        methodStr += indentLine + "return '0';";
-                    } else if (returnType === "string" || returnType === "String") {
-                        methodStr += indentLine + 'return "";';
-                    } else if (returnType === "void") {
-                        methodStr += indentLine + "return;";
-                    } else {
-                        methodStr += indentLine + "return null;";
+                methodStr += "(" + inputParamStrings.join(", ") + ")" + "\n{";
+
+                var override = true;
+
+                if (this.OperationContents.length > 0) {
+                    for (var operationBody in this.OperationContents) {
+                        if (elem._id === operationBody.Id) {
+                            override = false;
+                            _contents = operationBody.Content;
+                            break;
+                        }
                     }
-                    docs += "\n@return " + returnType;
                 }
+
+                methodStr += "\n//override " + (override ? "true " : "false ") + elem._id + "\n";
+
+                if (!override) {
+                    methodStr += _contents;
+                } else {
+                    if (returnTypeParam.length > 0) {
+                        var retParam_Name = validReturnParam.name;
+                        if (retParam_Name.length > 0) {
+                            methodStr += indentLine + this.getVariableDeclaration(validReturnParam, isCppBody) + ";\n";
+                            methodStr += "\n" + indentLine + "return " + retParam_Name + ";";
+                        } else {
+                            if (returnType === "boolean" || returnType === "bool") {
+                                methodStr += indentLine + "return false;";
+                            } else if (returnType === "int" || returnType === "long" || returnType === "short" || returnType === "byte") {
+                                methodStr += indentLine + "return 0;";
+                            } else if (returnType === "double" || returnType === "float") {
+                                methodStr += indentLine + "return 0.0;";
+                            } else if (returnType === "char") {
+                                methodStr += indentLine + "return '0';";
+                            } else if (returnType === "string" || returnType === "String") {
+                                methodStr += indentLine + 'return "";';
+                            } else if (returnType === "void") {
+                                methodStr += indentLine + "return;";
+                            } else {
+                                methodStr += indentLine + "return null;";
+                            }
+                        }
+                    }
+                    docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " :    " + validReturnParam.documentation : "");
+                }
+                
+                methodStr += "\n//end";
                 methodStr += "\n}";
             } else {
                 methodStr += elem.name;
@@ -943,6 +1013,18 @@ define(function (require, exports, module) {
                 }
             }
         }
+
+        // modify the type if elem is an UMLParameter and direction is "inout" or "out"
+        if (elem instanceof type.UMLParameter) {
+            switch (elem.direction) {
+                case UML.DK_INOUT:
+                    vName = "&" + vName;
+                    break;
+                case UML.DK_OUT:
+                    vName = "*" + vName;
+                    break;
+            }
+        }    
 
         // vType or vName can be modified by the multiplicity computation
         vDeclaration.push(vType);
