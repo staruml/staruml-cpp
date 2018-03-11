@@ -78,10 +78,14 @@ define(function (require, exports, module) {
         copyrightHeader = this.getDocuments(doc);
     }
 
+    /**
+     * Object for each modified operation
+     * @constructor
+     */
     function OperationBody() {
-        /** @member {string} */
+        /** @member {string} Operation._id */
         this.Id = "";
-        /** @member {string} */
+        /** @member {string} Operation._content */
         this.Content = "";
     }
 
@@ -105,10 +109,8 @@ define(function (require, exports, module) {
 
 
     CppCodeGenerator.prototype.generate = function (elem, path, options) {
-        // Contents of not overridable operation
-        this.OperationContents = [];
-
         this.genOptions = options;
+        this.opImplSaved = []; // Custom operations by Developper
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -319,7 +321,29 @@ define(function (require, exports, module) {
             // generate class cpp elem_name.cpp
             if (options.genCpp) {
                 file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_CPP));
-                FileUtils.writeText(file, this.writeBodySkeletonCode(file, elem, options, writeClassBody), true).then(result.resolve, result.reject);
+                var first = true; // for the sequence identifiation
+
+                Async.doSequentially([file, file], function (_file) {
+                    var _result = new $.Deferred();
+
+                    if (first) { // save all modification of operation's body
+                        _file.read({}, function (err, data, stat) {
+                            if (!err) {
+                                self.opImplSaved = self.getAllCustomOpImpl(data);
+                                _result.resolve();
+                            } else {
+                                _result.reject(err);
+                            }
+                        });
+
+                        first = false; // switch to the second sequence
+                    } else /*second*/ { // rewrite all with the saved modification
+                        FileUtils.writeText(_file, self.writeBodySkeletonCode(elem, options, writeClassBody), true).then(_result.resolve, _result.reject);
+                    }
+
+                    return _result.promise();
+                }, false)
+                .then(result.resolve, result.reject);
             }
 
         } else if (elem instanceof type.UMLInterface) {
@@ -351,7 +375,7 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.writeHeaderSkeletonCode = function (elem, options, funct) {
-        var headerString = "_" + elem.name.toUpperCase() + "_" + elem._id + "_H";
+        var headerString = "_" + elem.name.toUpperCase()/* + "_" + elem._id*/ + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
         var includePart = this.getIncludePart(elem);
         codeWriter.writeLine(copyrightHeader);
@@ -372,54 +396,62 @@ define(function (require, exports, module) {
     };
 
     /**
+     * Save all operation's body already implemented by the Developper
+     * 
+     * @param {string} data : the cpp file content
+     * @return {Array.<Object>}
+     */
+    CppCodeGenerator.prototype.getAllCustomOpImpl = function (data) {
+        var operationBodies = [];
+
+        if (!data.length) {
+            return operationBodies;
+        }
+        // transform this data to row array
+        var rowContents = data.split("\n");
+        var cell = [];
+        var i;
+
+        for (i = 0; i < rowContents.length; i++) {
+            // continue if no information
+            if (rowContents[i].length === 0) {
+                continue;
+            }
+            cell = rowContents[i].split(" ");
+            // catch the begin index
+            if (cell.length !== 3 || cell[0] !== "//override") {
+                continue;
+            }
+            // continue if the contents is overridable
+            if (cell[1] === "true") {
+                continue;
+            }
+            var operationBody = new OperationBody();
+
+            operationBody.Id = cell[2];
+            cell = rowContents[++i].split(" ");
+
+            while ((cell[0] !== "//end") && (i < rowContents.length)) {
+                // for Content integrity
+                operationBody.Content += (!operationBody.Content.length ? "" : "\n") + rowContents[i];
+                cell = rowContents[++i].split(" ");
+            }
+            operationBodies.push(operationBody);
+        }
+
+        return operationBodies;
+    };
+
+    /**
      * Write *.cpp file. Implement functor to each uml type.
      * Returns text
      *
-     * @param {Object} file
      * @param {Object} elem
      * @param {Object} options
      * @param {Object} functor
      * @return {Object} string
      */
-    CppCodeGenerator.prototype.writeBodySkeletonCode = function (file, elem, options, funct) {
-        // Catch not overridable operation contents
-        var fileContents = [];
-        FileUtils.readAsText(file)
-            .done(function (data) {
-                fileContents = data.split("\n");
-            })
-            .fail(function (err) {
-                console.error(err);
-            });
-
-        var operationBody = new OperationBody();
-        
-        for (var i = 0; i < fileContents.length; i++) {
-            var row = fileContents[i].split(" ");
-            
-            // catch the begin index
-            if (row.length !== 3 || row[0] !== "//override") {
-                continue;
-            }
-            // continue if the contents is overridable
-            if (row[1] === "true") {
-                continue;
-            }
-            
-            operationBody.Id = row[2];
-
-            i++;
-            row = fileContents[i].split(" ");
-
-            while (row[0] !== "//end") {
-                operationBody.Content += fileContents[i];
-                i++;
-                row = fileContents[i].split(" ");
-            }
-
-            OperationContents.push(operationBody);
-        }
-
+    CppCodeGenerator.prototype.writeBodySkeletonCode = function (elem, options, funct) {
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
 
         codeWriter.writeLine(copyrightHeader);
@@ -803,21 +835,22 @@ define(function (require, exports, module) {
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")" + "\n{";
 
-                var override = true;
-
-                if (this.OperationContents.length > 0) {
-                    for (var operationBody in this.OperationContents) {
-                        if (elem._id === operationBody.Id) {
-                            override = false;
-                            _contents = operationBody.Content;
+                var _override = true;
+                var _contents = "";
+                // get the content of an identified operation
+                if (this.opImplSaved.length > 0) {
+                    for (var i = 0; i < this.opImplSaved.length; i++) {
+                        if (elem._id === this.opImplSaved[i].Id) {
+                            _override = false;
+                            _contents = this.opImplSaved[i].Content;
                             break;
                         }
                     }
                 }
+                // write an operation identifier
+                methodStr += "\n//override " + (_override ? "true " : "false ") + elem._id + "\n";
 
-                methodStr += "\n//override " + (override ? "true " : "false ") + elem._id + "\n";
-
-                if (!override) {
+                if (_override === false) {
                     methodStr += _contents;
                 } else {
                     if (returnTypeParam.length > 0) {
@@ -842,8 +875,8 @@ define(function (require, exports, module) {
                                 methodStr += indentLine + "return null;";
                             }
                         }
+                        docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " :    " + validReturnParam.documentation : "");
                     }
-                    docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " :    " + validReturnParam.documentation : "");
                 }
                 
                 methodStr += "\n//end";
@@ -1030,8 +1063,8 @@ define(function (require, exports, module) {
         vDeclaration.push(vType);
         vDeclaration.push(vName);
 
-        // if parameter, Default value is not generated in body of the class
-        if (isCppBody === false) {
+        // if parameter with direction other than "return", Default value is not generated in body of the class
+        if (!isCppBody || (elem instanceof type.UMLParameter && elem.direction === UML.DK_RETURN)) {
             // initial value
             if (elem.defaultValue && elem.defaultValue.length > 0) {
                 vDeclaration.push("= " + elem.defaultValue);
