@@ -5,7 +5,7 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 
 
 ### UMLPackage
-* converted to folder.
+* converted to _folder_ and _Cpp namespace_ in generated file type (_UMLClass_, _UMLInterface_, _UMLEnumeration_).
 
 ### UMLClass
 
@@ -39,7 +39,9 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 * _UMLParameter_'s name property to parameter identifier.
 * _UMLParameter_'s type property to type of parameter.
 * _UMLParameter_ with `direction` = `return` to return type of method. When no return parameter, `void` is used.
+* _UMLParameter_'s `defaultValue` only setted to `return` direction in _Cpp file_ and `in`/`out`/`inout` direction in _Header file_.
 * _UMLParameter_ with `isReadOnly` = `true` to `const` modifier of parameter.
+* Parse body method if all _modification by developper_ in _Cpp file_ (already generated) need to be `Save` or `Reset` (Usefull with all _`"Unified Process"` Methodology_).
 
 ### UMLInterface
 
@@ -65,7 +67,11 @@ converts
 #ifndef (_WEEKDAYS_H)
 #define _WEEKDAYS_H
 
-enum Weekdays { Monday,Tuesday,Saturday };
+enum Weekdays {
+    Monday,
+    Tuesday,
+    Saturday
+};
 
 #endif //_WEEKDAYS_H
 ```
@@ -80,7 +86,7 @@ enum Weekdays { Monday,Tuesday,Saturday };
 * `visibility` property to one of modifiers `public`, `protected`, `private`. If visibility is not setted, consider as `protected`.
 * `name` property to field identifier.
 * `type` property to field type.
-* If `multiplicity` is one of `0..*`, `1..*`, `*`, then collection type (`std::vector<T>` ) is used.
+* If `multiplicity` is one of `0..*`, `1..*`, `*`, then collection type (`std::vector<T>` or `T*`) is used.
 * `defaultValue` property to initial value.
 
 ### UMLGeneralization & UMLInterfaceRealization
