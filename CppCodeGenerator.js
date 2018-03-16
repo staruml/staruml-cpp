@@ -122,6 +122,25 @@ define(function (require, exports, module) {
             return abs_path;
         };
 
+        var writeSignal = function (codeWriter, elem, cppCodeGen) {
+            var i;
+            var modifierList = cppCodeGen.getModifiers(elem);
+            var modifierStr = "";
+            for (i = 0; i < modifierList.length; i++) {
+                modifierStr += modifierList[i] + " ";
+            }
+
+            var params = [];
+            for (i = 0; i < elem.attributes.length; i++) {
+                var att = elem.attributes[i];
+                params.push(cppCodeGen.getVariableDeclaration(att, true));
+            }
+            // doc
+            var docs = cppCodeGen.getDocuments(elem.documentation);
+
+            codeWriter.writeLine(docs + modifierStr + "void " + elem.name + "(" + params.join(", ") + ");");
+        };
+
         var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
             var i;
             var modifierList = cppCodeGen.getModifiers(elem);
@@ -129,7 +148,10 @@ define(function (require, exports, module) {
             for (i = 0; i < modifierList.length; i++) {
                 modifierStr += modifierList[i] + " ";
             }
-            codeWriter.writeLine(modifierStr + "enum " + elem.name + " {\n\t" + _.pluck(elem.literals, 'name').join(",\n\t") + "\n};");
+            // doc
+            var docs = cppCodeGen.getDocuments(elem.documentation);
+
+            codeWriter.writeLine(docs + modifierStr + "enum " + elem.name + " {\n\t" + _.pluck(elem.literals, 'name').join(",\n\t") + "\n};");
         };
 
         var writeClassHeader = function (codeWriter, elem, cppCodeGen) {
@@ -146,6 +168,8 @@ define(function (require, exports, module) {
                         writeClassHeader(codeWriter, item, cppCodeGen);
                     } else if (item instanceof type.UMLEnumeration) {
                         writeEnumeration(codeWriter, item, cppCodeGen);
+                    } else if (item instanceof type.UMLSignal) {
+                        writeSignal(codeWriter, item, cppCodeGen);
                     }
                 }
             };
@@ -189,7 +213,7 @@ define(function (require, exports, module) {
             var innerElement = [];
             for (i = 0; i < elem.ownedElements.length; i++) {
                 var element = elem.ownedElements[i];
-                if (element instanceof type.UMLClass || element instanceof type.UMLEnumeration) {
+                if (element instanceof type.UMLClass || element instanceof type.UMLEnumeration || element instanceof type.UMLSignal) {
                     innerElement.push(element);
                 }
             }
@@ -359,6 +383,13 @@ define(function (require, exports, module) {
 
             file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
             FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration), true).then(result.resolve, result.reject);
+        
+        } else if (elem instanceof type.UMLSignal) {
+            // generate signal header ONLY elem_name.h
+
+            file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
+            FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeSignal, true)).then(result.resolve, result.reject);
+        
         } else {
             result.resolve();
         }
@@ -502,24 +533,23 @@ define(function (require, exports, module) {
         
     CppCodeGenerator.prototype.writeHeaderNamespaces = function (codeWriter, elem, funct) {
         var namespaces = this.getNamespaces(elem);
+        // doc
+        var docs = this.getDocuments(elem.documentation);
 
         var i;
-        if (namespaces.length > 0) {
-            for (i = 0; i < namespaces.length; i++) {
-                codeWriter.writeLine("namespace " + namespaces[i] + " {");
-            }
-            codeWriter.writeLine();
-
-            funct(codeWriter, elem, this);
-
-            codeWriter.writeLine();
-            for (i = 0; i < namespaces.length; i++) {
-                codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
-            }
-        } else {
-            funct(codeWriter, elem, this);
+        for (i = 0; i < namespaces.length; i++) {
+            codeWriter.writeLine("namespace " + namespaces[i] + " {");
         }
+        codeWriter.writeLine();
 
+        codeWriter.writeLine(docs);
+        funct(codeWriter, elem, this);
+
+        codeWriter.writeLine();
+        for (i = 0; i < namespaces.length; i++) {
+            codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+        }
+        
         return codeWriter.getData();
     };
 
