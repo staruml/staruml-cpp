@@ -138,7 +138,7 @@ define(function (require, exports, module) {
             // doc
             var docs = cppCodeGen.getDocuments(elem.documentation);
 
-            codeWriter.writeLine(docs + modifierStr + "void " + elem.name + "(" + params.join(", ") + ");");
+            codeWriter.writeLine(docs + "/*Q_SIGNAL*/ " + modifierStr + "void " + elem.name + "(" + params.join(", ") + ");");
         };
 
         var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
@@ -164,6 +164,8 @@ define(function (require, exports, module) {
                         codeWriter.writeLine(cppCodeGen.getMemberVariable(item));
                     } else if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, false));
+                    } else if (item instanceof type.UMLReception) {
+                        codeWriter.writeLine(cppCodeGen.getSlot(item, false));
                     } else if (item instanceof type.UMLClass) {
                         writeClassHeader(codeWriter, item, cppCodeGen);
                     } else if (item instanceof type.UMLEnumeration) {
@@ -218,7 +220,9 @@ define(function (require, exports, module) {
                 }
             }
 
-            var allMembers = memberAttr.concat(methodList).concat(innerElement);
+            var receptionList = elem.receptions.slice(0);
+
+            var allMembers = memberAttr.concat(methodList).concat(receptionList).concat(innerElement);
 
             var classfiedAttributes = cppCodeGen.classifyVisibility(allMembers);
 
@@ -227,6 +231,11 @@ define(function (require, exports, module) {
             if (elem.isFinalSpecialization === true || elem.isLeaf === true) {
                 finalModifier = " final ";
             }
+
+            // doc
+            var docs = cppCodeGen.getDocuments(elem.documentation);
+            codeWriter.writeLine(docs);
+
             var templatePart = cppCodeGen.getTemplateParameter(elem);
             if (templatePart.length > 0) {
                 codeWriter.writeLine(templatePart);
@@ -264,6 +273,8 @@ define(function (require, exports, module) {
                     item = elemList._public[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    } else if (item instanceof type.UMLReception) {
+                        codeWriter.writeLine(cppCodeGen.getSlot(item, true));
                     } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
@@ -273,6 +284,8 @@ define(function (require, exports, module) {
                     item = elemList._protected[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    } else if (item instanceof type.UMLReception) {
+                        codeWriter.writeLine(cppCodeGen.getSlot(item, true));
                     } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
@@ -282,20 +295,26 @@ define(function (require, exports, module) {
                     item = elemList._private[i];
                     if (item instanceof type.UMLOperation) { // if write method
                         codeWriter.writeLine(cppCodeGen.getMethod(item, true));
+                    } else if (item instanceof type.UMLReception) {
+                        codeWriter.writeLine(cppCodeGen.getSlot(item, true));
                     } else if (item instanceof type.UMLClass) {
                         writeClassBody(codeWriter, item, cppCodeGen);
                     }
                 }
             };
 
-            // parsing class
-            var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0));
             var docs = elem.name + " implementation\n\n";
             if (_.isString(elem.documentation)) {
                 docs += elem.documentation;
             }
             codeWriter.writeLine(cppCodeGen.getDocuments(docs));
+
+            // parsing class
+            var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0));
             writeClassMethod(methodList);
+
+            var receptionList = cppCodeGen.classifyVisibility(elem.receptions.slice(0));
+            writeClassMethod(receptionList);
 
             // parsing nested class
             var innerClass = [];
@@ -522,7 +541,12 @@ define(function (require, exports, module) {
         return greatNamespaces;
     };
 
-    CppCodeGenerator.prototype.getNamespacesSpecifierString = function (elem) {
+    /**
+     * get all parents of the elem (package only)
+     * @param {Object} elem 
+     * @return {String}
+     */
+    CppCodeGenerator.prototype.getNamespacesSpecifierStr = function (elem) {
         var namespaces = this.getNamespaces(elem);
         var namespacesString = "";
         if (namespaces.length > 0) {
@@ -530,24 +554,48 @@ define(function (require, exports, module) {
         }
         return namespacesString;
     };
-        
+    
+    /**
+     * get all parents of the elem (package and class)
+     * @param {Object} elem 
+     * @return {String}
+     */
+    CppCodeGenerator.prototype.getContainersSpecifierStr = function (elem) {
+        var t_elem = elem;
+        var specifiers = [];
+        var invSpecifiers = [];
+
+        while (t_elem._parent instanceof type.UMLClass) {
+            invSpecifiers.push(t_elem._parent.name);
+            t_elem = t_elem._parent;
+        }
+
+        for (var i = 0; i < invSpecifiers.length; i++) {
+            specifiers.push(invSpecifiers[(invSpecifiers.length - 1) - i]);
+        }
+
+        return this.getNamespacesSpecifierStr(t_elem) + specifiers.join("::");
+
+    };
+
     CppCodeGenerator.prototype.writeHeaderNamespaces = function (codeWriter, elem, funct) {
         var namespaces = this.getNamespaces(elem);
-        // doc
-        var docs = this.getDocuments(elem.documentation);
 
-        var i;
-        for (i = 0; i < namespaces.length; i++) {
-            codeWriter.writeLine("namespace " + namespaces[i] + " {");
-        }
-        codeWriter.writeLine();
+        if (namespaces.length > 0) {
+            var i;
+            for (i = 0; i < namespaces.length; i++) {
+                codeWriter.writeLine("namespace " + namespaces[i] + " {");
+            }
+            codeWriter.writeLine();
 
-        codeWriter.writeLine(docs);
-        funct(codeWriter, elem, this);
+            funct(codeWriter, elem, this);
 
-        codeWriter.writeLine();
-        for (i = 0; i < namespaces.length; i++) {
-            codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+            codeWriter.writeLine();
+            for (i = 0; i < namespaces.length; i++) {
+                codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+            }
+        } else {
+            funct(codeWriter, elem, this);
         }
         
         return codeWriter.getData();
@@ -835,8 +883,6 @@ define(function (require, exports, module) {
             methodStr += returnType + " ";
 
             if (isCppBody) {
-                var t_elem = elem;
-
                 var templateSpecifier = "";
                 var templateParameter = this.getTemplateParameter(elem);
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
@@ -849,17 +895,8 @@ define(function (require, exports, module) {
                     methodStr = parentTemplateParameter + "\n" + methodStr;
                 }
 
-                var specifier = t_elem._parent.name + templateSpecifier + "::";
-                t_elem = t_elem._parent;
-
-                while (t_elem._parent instanceof type.UMLClass) {
-                    specifier = t_elem._parent.name + "::" + specifier;
-                    t_elem = t_elem._parent;
-                }
-
-                specifier = this.getNamespacesSpecifierString(t_elem) + specifier;
-
                 var indentLine = this.getIndentString(this.genOptions);
+                var specifier = this.getContainersSpecifierStr(elem) + templateSpecifier + "::";
 
                 methodStr += specifier;
                 methodStr += elem.name;
@@ -923,6 +960,84 @@ define(function (require, exports, module) {
                 methodStr += ";";
             }
 
+            return "\n" + this.getDocuments(docs) + methodStr;
+        }
+    };
+
+    /**
+     * generate slot from reception[i]
+     *
+     * @param {Object} elem
+     * @param {boolean} isCppBody
+     * @return {Object} string
+     */
+    CppCodeGenerator.prototype.getSlot = function (elem, isCppBody) {
+        if (elem.name.length > 0) {
+            var docs = "@brief " + elem.documentation;
+            var i;
+            var methodStr = "";
+            var paramStr = "";
+
+            if (elem.isStatic === true) {
+                methodStr += "static ";
+            }
+
+            if (elem.signal !== null && elem.signal instanceof type.UMLSignal) {
+                var elemSignal = elem.signal;
+                var params = [];
+                for (i = 0; i < elemSignal.attributes.length; i++) {
+                    var att = elemSignal.attributes[i];
+                    params.push(this.getVariableDeclaration(att, true));
+                }
+                paramStr += params.join(", ");
+                
+                var specifier = this.getContainersSpecifierStr(elemSignal) + "::";
+                docs += "\nFrom signal: " + specifier + elemSignal.name;
+            }
+
+            if (isCppBody) {
+                var templateSpecifier = "";
+                var templateParameter = this.getTemplateParameter(elem);
+                var parentTemplateParameter = this.getTemplateParameter(elem._parent);
+
+                if (templateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem);
+                    methodStr = templateParameter + "\n" + methodStr;
+                } else if (parentTemplateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem._parent);
+                    methodStr = parentTemplateParameter + "\n" + methodStr;
+                }
+
+                var indentLine = this.getIndentString(this.genOptions);
+                var specifier = this.getContainersSpecifierStr(elem) + templateSpecifier + "::";
+
+                methodStr += "void " + specifier + elem.name + "(" + paramStr + ")";
+                methodStr += "\n{";
+
+                var _override = true;
+                var _contents = "";
+                // get the content of an identified operation
+                if (this.opImplSaved.length > 0) {
+                    for (var i = 0; i < this.opImplSaved.length; i++) {
+                        if (elem._id === this.opImplSaved[i].Id) {
+                            _override = false;
+                            _contents = this.opImplSaved[i].Content;
+                            break;
+                        }
+                    }
+                }
+                // write an operation identifier
+                methodStr += "\n//override " + (_override ? "true " : "false ") + elem._id + "\n";
+
+                if (_override === false) {
+                    methodStr += _contents;
+                }
+                
+                methodStr += "\n//end";
+                methodStr += "\n}";
+            } else {
+                methodStr += "/*Q_SLOT*/ " + "void " + elem.name + "(" + paramStr + ");";
+            }
 
             return "\n" + this.getDocuments(docs) + methodStr;
         }
@@ -998,7 +1113,7 @@ define(function (require, exports, module) {
 
         if (elem instanceof type.UMLAssociationEnd) { // member variable from association
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
-                _type = this.getNamespacesSpecifierString(elem.reference) + elem.reference.name;
+                _type = this.getNamespacesSpecifierStr(elem.reference) + elem.reference.name;
 
                 var associations = Repository.getRelationshipsOf(elem.reference, function (rel) {
                     return (rel instanceof type.UMLAssociation);
@@ -1025,7 +1140,7 @@ define(function (require, exports, module) {
             }
         } else { // member variable inside class
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
-                _type = this.getNamespacesSpecifierString(elem.type) + elem.type.name;
+                _type = this.getNamespacesSpecifierStr(elem.type) + elem.type.name;
             } else if (_.isString(elem.type) && elem.type.length > 0) {
                 _type = elem.type;
             }
