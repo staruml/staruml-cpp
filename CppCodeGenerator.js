@@ -111,6 +111,7 @@ define(function (require, exports, module) {
     CppCodeGenerator.prototype.generate = function (elem, path, options) {
         this.genOptions = options;
         this.opImplSaved = []; // Custom operations by Developper
+        this.haveSR = false; // Signal and/or Reception found in the class elem
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -126,6 +127,8 @@ define(function (require, exports, module) {
             var i;
             var modifierList = cppCodeGen.getModifiers(elem);
             var modifierStr = "";
+            var identifier = "";
+
             for (i = 0; i < modifierList.length; i++) {
                 modifierStr += modifierList[i] + " ";
             }
@@ -138,7 +141,11 @@ define(function (require, exports, module) {
             // doc
             var docs = cppCodeGen.getDocuments(elem.documentation);
 
-            codeWriter.writeLine(docs + "/*Q_SIGNAL*/ " + modifierStr + "void " + elem.name + "(" + params.join(", ") + ");");
+            if (cppCodeGen.genOptions.useQt) {
+                identifier = "Q_SIGNAL ";
+            }
+
+            codeWriter.writeLine(docs + identifier + modifierStr + "void " + elem.name + "(" + params.join(", ") + ");");
         };
 
         var writeEnumeration = function (codeWriter, elem, cppCodeGen) {
@@ -176,24 +183,25 @@ define(function (require, exports, module) {
                 }
             };
             var writeInheritance = function (elem) {
-                var inheritString = ": ";
                 var genList = cppCodeGen.getSuperClasses(elem);
-
-                if (genList.length === 0) {
-                    return "";
-                }
-
                 var i;
                 var term = [];
-
 
                 for (i = 0; i < genList.length; i++) {
                     var generalization = genList[i];
                     // public AAA, private BBB
                     term.push(generalization.visibility + " " + generalization.target.name);
                 }
-                inheritString += term.join(", ");
-                return inheritString;
+
+                if (cppCodeGen.haveSR && cppCodeGen.genOptions.useQt) {
+                    term.push("public QObject");
+                }
+
+                if (!term.length) {
+                    return "";
+                }
+
+                return  ": " + term.join(", ");
             };
 
             // member variable
@@ -234,7 +242,9 @@ define(function (require, exports, module) {
 
             // doc
             var docs = cppCodeGen.getDocuments(elem.documentation);
-            codeWriter.writeLine(docs);
+            if (docs.length > 0) {
+                codeWriter.writeLine(docs);
+            }
 
             var templatePart = cppCodeGen.getTemplateParameter(elem);
             if (templatePart.length > 0) {
@@ -242,6 +252,11 @@ define(function (require, exports, module) {
             }
 
             codeWriter.writeLine("class " + elem.name + finalModifier + writeInheritance(elem) + "\n{");
+            if (cppCodeGen.haveSR && cppCodeGen.genOptions.useQt) {
+                codeWriter.indent();
+                codeWriter.writeLine("Q_OBJECT");
+                codeWriter.outdent();
+            }
             if (classfiedAttributes._public.length > 0) {
                 codeWriter.writeLine("public: ");
                 codeWriter.indent();
@@ -356,10 +371,11 @@ define(function (require, exports, module) {
             });
 
         } else if (elem instanceof type.UMLClass) {
+            self.haveSR = SRState(elem);
 
             // generate class header elem_name.h
             file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
+            FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
 
             // generate class cpp elem_name.cpp
             if (options.genCpp) {
@@ -395,25 +411,44 @@ define(function (require, exports, module) {
              */
             // generate interface header ONLY elem_name.h
             file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
+            FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
 
         } else if (elem instanceof type.UMLEnumeration) {
             // generate enumeration header ONLY elem_name.h
 
             file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration), true).then(result.resolve, result.reject);
+            FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeEnumeration), true).then(result.resolve, result.reject);
         
         } else if (elem instanceof type.UMLSignal) {
             // generate signal header ONLY elem_name.h
 
             file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            FileUtils.writeText(file, this.writeHeaderSkeletonCode(elem, options, writeSignal, true)).then(result.resolve, result.reject);
+            FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeSignal, true)).then(result.resolve, result.reject);
         
         } else {
             result.resolve();
         }
         return result.promise();
     };
+
+    /**
+     * find if the elem have Signal and/or Reception
+     * @param {Object} elem 
+     * @return {Boolean}
+     */
+    function SRState(elem) {
+        if (elem.receptions.length > 0) {
+            return true;
+        }
+        for (var i = 0; i < elem.ownedElements.length; i++) {
+            var element = elem.ownedElements[i];
+            if (element instanceof type.UMLSignal) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /**
      * Write *.h file. Implement functor to each uml type.
@@ -727,6 +762,10 @@ define(function (require, exports, module) {
         var memberString = "";
         var dependenciesString = "";
 
+        if (this.haveSR && this.genOptions.useQt) {
+            headerString += "#include <QObject>\n";
+        }
+
         if (Repository.getRelationshipsOf(elem).length <= 0) {
             return "";
         }
@@ -991,7 +1030,10 @@ define(function (require, exports, module) {
                 }
                 paramStr += params.join(", ");
                 
-                var specifier = this.getContainersSpecifierStr(elemSignal) + "::";
+                var specifier = this.getContainersSpecifierStr(elemSignal);
+                if (specifier.length > 0) {
+                    specifier += "::";
+                }
                 docs += "\nFrom signal: " + specifier + elemSignal.name;
             }
 
@@ -1036,7 +1078,12 @@ define(function (require, exports, module) {
                 methodStr += "\n//end";
                 methodStr += "\n}";
             } else {
-                methodStr += "/*Q_SLOT*/ " + "void " + elem.name + "(" + paramStr + ");";
+                var identifier = "";
+                if (this.genOptions.useQt) {
+                    identifier = "Q_SLOT ";
+                }
+
+                methodStr += identifier + "void " + elem.name + "(" + paramStr + ");";
             }
 
             return "\n" + this.getDocuments(docs) + methodStr;
