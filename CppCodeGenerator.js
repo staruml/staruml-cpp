@@ -460,7 +460,9 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.writeHeaderSkeletonCode = function (elem, options, funct) {
-        var headerString = "_" + elem.name.toUpperCase()/* + "_" + elem._id*/ + "_H";
+        var namespaces = this.getNamespaces(elem).join("_");
+        if (namespaces.length > 0) { namespaces += "_"; }
+        var headerString = "_" + namespaces.toUpperCase() + elem.name.toUpperCase() + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
         var includePart = this.getIncludePart(elem);
         codeWriter.writeLine(copyrightHeader);
