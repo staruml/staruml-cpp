@@ -993,10 +993,22 @@ define(function (require, exports, module) {
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")";
 
-                if (elem.isLeaf === true) {
-                    methodStr += " final";
-                } else if (elem.isAbstract === true) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것
+                if (elem._parent instanceof type.UMLInterface) {
+                    if (!elem.isAbstract) {
+                        methodStr = "virtual " + methodStr;
+                    }
                     methodStr += " = 0";
+                    // set the elem and his parent in model to abstract (if not setted)
+                    elem._parent.isAbstract = true;
+                    elem.isAbstract = true;
+                } else {
+                    if (elem.isLeaf) {
+                        methodStr += " final";
+                    } else if (elem.isAbstract) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것
+                        methodStr += " = 0";
+                        // set the parent elem in model to abstract (if not setted)
+                        elem._parent.isAbstract = true;
+                    }
                 }
                 methodStr += ";";
             }
