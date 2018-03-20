@@ -879,12 +879,6 @@ define(function (require, exports, module) {
             var docs = "@brief " + elem.documentation;
             var i;
             var methodStr = "";
-            // TODO virtual fianl static 키워드는 섞어 쓸수가 없다
-            if (elem.isStatic === true) {
-                methodStr += "static ";
-            } else if (elem.isAbstract === true) {
-                methodStr += "virtual ";
-            }
 
             var returnTypeParam = _.filter(elem.parameters, function (params) {
                 return params.direction === "return";
@@ -989,25 +983,29 @@ define(function (require, exports, module) {
                 
                 methodStr += "\n//end";
                 methodStr += "\n}";
+
             } else {
+
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")";
 
+                // make pure virtual all operation of an UMLInterface
                 if (elem._parent instanceof type.UMLInterface) {
-                    if (!elem.isAbstract) {
-                        methodStr = "virtual " + methodStr;
-                    }
+                    methodStr = "virtual " + methodStr;
                     methodStr += " = 0";
                     // set the elem and his parent in model to abstract (if not setted)
                     elem._parent.isAbstract = true;
                     elem.isAbstract = true;
                 } else {
-                    if (elem.isLeaf) {
-                        methodStr += " final";
-                    } else if (elem.isAbstract) { // TODO 만약 virtual 이면 모두 pure virtual? 체크 할것
+                    if (elem.isStatic) {
+                        methodStr = "static " + methodStr;
+                    } else if (elem.isAbstract) {
+                        methodStr = "virtual " + methodStr;
                         methodStr += " = 0";
                         // set the parent elem in model to abstract (if not setted)
                         elem._parent.isAbstract = true;
+                    } else if (elem.isLeaf) {
+                        methodStr += " final";
                     }
                 }
                 methodStr += ";";
