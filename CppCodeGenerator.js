@@ -353,7 +353,8 @@ define(function (require, exports, module) {
             file;
 
         // Package -> as namespace or not
-        if (elem instanceof type.UMLPackage) {
+        if (elem instanceof type.UMLPackage ||
+            elem instanceof type.UMLComponent) {
             fullPath = path + "/" + elem.name;
             directory = FileSystem.getDirectoryForPath(fullPath);
             directory.create(function (err, stat) {
@@ -808,7 +809,8 @@ define(function (require, exports, module) {
         if (dependencies.length > 0) {
             for (i = 0; i < dependencies.length; i++) {
                 var target = dependencies[i];
-                if (associationComp.contains(target)) {
+                if (associationComp.contains(target) ||
+                    !(target instanceof type.UMLClassifier)) {
                     continue;
                 }
                 dependenciesString += "#include \"" + this.trackingHeader(elem, target) + ".h\"\n";
