@@ -112,6 +112,7 @@ define(function (require, exports, module) {
         this.genOptions = options;
         this.opImplSaved = []; // Custom operations by Developper
         this.haveSR = false; // Signal and/or Reception found in the class elem
+        this.needComment = true; // Explanation of saving Operation body
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -390,6 +391,10 @@ define(function (require, exports, module) {
                         _file.read({}, function (err, data, stat) {
                             if (!err) {
                                 self.opImplSaved = self.getAllCustomOpImpl(data);
+                                // don't need comment if at least one operation is saved
+                                if (self.opImplSaved.length > 0) {
+                                    self.needComment = false;
+                                }
                                 _result.resolve();
                             } else {
                                 _result.reject(err);
@@ -507,19 +512,19 @@ define(function (require, exports, module) {
             }
             cell = rowContents[i].split(" ");
             // catch the begin index
-            if (cell.length !== 3 || cell[0] !== "//override") {
-                continue;
-            }
-            // continue if the contents is overridable
-            if (cell[1] === "true") {
+            if (cell.length < 2 || cell[0] !== "//begin") {
                 continue;
             }
             var operationBody = new OperationBody();
 
-            operationBody.Id = cell[2];
+            operationBody.Id = cell[1];
+            // continue if the contents is overridable
+            if (cell.length > 2 && cell[2] === "[R]") {
+                continue;
+            }
             cell = rowContents[++i].split(" ");
 
-            while ((cell[0] !== "//end") && (i < rowContents.length)) {
+            while (cell[0] !== "//end" && cell[1] !== operationBody.Id && (i < rowContents.length)) {
                 // for Content integrity
                 operationBody.Content += (!operationBody.Content.length ? "" : "\n") + rowContents[i];
                 cell = rowContents[++i].split(" ");
@@ -547,7 +552,15 @@ define(function (require, exports, module) {
         codeWriter.writeLine("#include \"" + elem.name + ".h\"");
         codeWriter.writeLine();
 
+        if (this.needComment) {
+            codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id [R]\" AND \"//end op._id\"");
+            codeWriter.writeLine("// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION");
+            codeWriter.writeLine("// TO SAVE CHANGE, JUST REMOVE THE \"[R]\" (RESET OPTION) IN THE \"//begin\" LINE OF THE CURRENT OPERATION");
+            codeWriter.writeLine();
+        }
+
         funct(codeWriter, elem, this);
+
         return codeWriter.getData();
     };
 
@@ -937,26 +950,26 @@ define(function (require, exports, module) {
 
                 methodStr += specifier;
                 methodStr += elem.name;
-                methodStr += "(" + inputParamStrings.join(", ") + ")" + "\n{";
+                methodStr += "(" + inputParamStrings.join(", ") + ")";
 
-                var _override = true;
+                var _reset = true;
                 var _contents = "";
                 // get the content of an identified operation
                 if (this.opImplSaved.length > 0) {
                     for (var i = 0; i < this.opImplSaved.length; i++) {
                         if (elem._id === this.opImplSaved[i].Id) {
-                            _override = false;
+                            _reset = false;
                             _contents = this.opImplSaved[i].Content;
                             break;
                         }
                     }
                 }
                 // write an operation identifier
-                methodStr += "\n//override " + (_override ? "true " : "false ") + elem._id + "\n";
+                methodStr += "\n//begin " + elem._id + (_reset ? " [R]" : "") + "\n";
 
-                if (_override === false) {
-                    methodStr += _contents;
-                } else {
+                if (_reset) {
+                    methodStr += "{\n";
+    
                     if (returnTypeParam.length > 0) {
                         var retParam_Name = validReturnParam.name;
                         if (retParam_Name.length > 0) {
@@ -981,10 +994,12 @@ define(function (require, exports, module) {
                         }
                         docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " :    " + validReturnParam.documentation : "");
                     }
+                    methodStr += "\n}";
+                } else {
+                    methodStr += _contents;
                 }
-                
-                methodStr += "\n//end";
-                methodStr += "\n}";
+
+                methodStr += "\n//end " + elem._id;
 
             } else {
 
