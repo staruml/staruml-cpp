@@ -559,9 +559,38 @@ define(function (require, exports, module) {
             codeWriter.writeLine();
         }
 
+        codeWriter.writeLine(this.writeCustomCode(elem));
+        codeWriter.writeLine();
+
         funct(codeWriter, elem, this);
 
         return codeWriter.getData();
+    };
+
+    CppCodeGenerator.prototype.writeCustomCode = function (elem) {
+        var customCode = "";
+        var _reset = true;
+        var _contents = "";
+        // get the content of an identified operation
+        if (this.opImplSaved.length > 0) {
+            for (var i = 0; i < this.opImplSaved.length; i++) {
+                if (elem._id === this.opImplSaved[i].Id) {
+                    _reset = false;
+                    _contents = this.opImplSaved[i].Content;
+                    break;
+                }
+            }
+        }
+        // write an operation identifier
+        customCode += "\n//begin " + elem._id + (_reset ? " [R]" : "") + "\n";
+
+        if (!_reset) { // restore all custom code of this method
+            customCode += _contents;
+        }
+
+        customCode += "\n//end " + elem._id;
+
+        return customCode;
     };
 
     /**
@@ -1283,10 +1312,10 @@ define(function (require, exports, module) {
         if (elem instanceof type.UMLParameter) {
             switch (elem.direction) {
                 case UML.DK_INOUT:
-                    vName = "&" + vName;
+                    vName = "*" + vName;
                     break;
                 case UML.DK_OUT:
-                    vName = "*" + vName;
+                    vName = "&" + vName;
                     break;
             }
         }    
