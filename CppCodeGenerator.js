@@ -48,6 +48,31 @@ define(function (require, exports, module) {
     var copyrightHeader     = "/* Test header @ toori67 \n * This is Test\n * also test\n * also test again\n */";
     var versionString       = "v0.0.1";
 
+    var _CPP_DEFAULT_TYPE = [
+        "void",
+        "bool",
+
+        "char",
+        "short",
+        "int",
+        "long",
+        "float",
+        "double",
+
+        "unsigned char",
+        "unsigned short",
+        "unsigned int",
+        "unsigned long",
+        "unsigned float",
+        "unsigned double",
+
+        "uchar",
+        "ushort",
+        "uint",
+        "ulong",
+        "ufloat",
+        "udouble"
+    ];
 
     /**
      * Cpp code generator
@@ -113,6 +138,10 @@ define(function (require, exports, module) {
         this.opImplSaved = []; // Custom operations by Developper
         this.haveSR = false; // Signal and/or Reception found in the class elem
         this.needComment = true; // Explanation of saving Operation body
+
+        this.toDeclared = [];
+        this.toIncluded = [];
+        this.notRecType = [];
 
         var getFilePath = function (extenstions) {
             var abs_path = path + "/" + elem.name + ".";
@@ -231,7 +260,7 @@ define(function (require, exports, module) {
 
             var receptionList = elem.receptions.slice(0);
 
-            var allMembers = memberAttr.concat(methodList).concat(receptionList).concat(innerElement);
+            var allMembers = innerElement.concat(memberAttr).concat(methodList).concat(receptionList);
 
             var classfiedAttributes = cppCodeGen.classifyVisibility(allMembers);
 
@@ -373,6 +402,20 @@ define(function (require, exports, module) {
             });
 
         } else if (elem instanceof type.UMLClass) {
+            var SRState = function (elem) {
+                if (elem.receptions.length > 0) {
+                    return true;
+                }
+                for (var i = 0; i < elem.ownedElements.length; i++) {
+                    var element = elem.ownedElements[i];
+                    if (element instanceof type.UMLSignal) {
+                        return true;
+                    }
+                }
+        
+                return false;
+            };
+        
             self.haveSR = SRState(elem);
 
             // generate class header elem_name.h
@@ -438,23 +481,48 @@ define(function (require, exports, module) {
     };
 
     /**
-     * find if the elem have Signal and/or Reception
-     * @param {Object} elem 
-     * @return {Boolean}
+     * parse the type of used model element (to declare or to include)
+     * @param {UML.ModelElement} elemType 
+     * @param {boolean} toDeclared 
      */
-    function SRState(elem) {
-        if (elem.receptions.length > 0) {
-            return true;
-        }
-        for (var i = 0; i < elem.ownedElements.length; i++) {
-            var element = elem.ownedElements[i];
-            if (element instanceof type.UMLSignal) {
-                return true;
-            }
+    CppCodeGenerator.prototype.parseElemType = function (type, toDeclared) {
+        var elemType = type;
+        var anchestors = this.getAnchestorsClass(elemType);
+        if (anchestors.length) {
+            elemType = anchestors[0];
         }
 
-        return false;
-    }
+        // if already exist
+        if ((this.toDeclared.contains(elemType) && toDeclared) || this.toIncluded.contains(elemType)) {
+            return;
+        }
+
+        // remove the elem in toDeclared if the new value is toIncluded
+        if (this.toDeclared.contains(elemType) && !toDeclared) {
+            var i;
+            for (i = 0; i < this.toDeclared.length; i++) {
+                if (this.toDeclared[i] === elemType) {
+                    break;
+                }
+            }
+            this.toDeclared.splice(i, 1);
+        }
+
+        // add the elem
+        if (toDeclared) {
+            this.toDeclared.push(elemType);
+        } else {
+            this.toIncluded.push(elemType);
+        }
+    };
+
+    CppCodeGenerator.prototype.parseUnrecognizedType = function (typeName) {
+        if (_CPP_DEFAULT_TYPE.contains(typeName) || this.notRecType.contains(typeName)) {
+            return;
+        }
+
+        this.notRecType.push(typeName);
+    };
 
     /**
      * Write *.h file. Implement functor to each uml type.
@@ -466,22 +534,127 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.writeHeaderSkeletonCode = function (elem, options, funct) {
+        var getIncludePart = function (elem, cppCodeGen) {
+            var i;
+            var headerString = "";
+            var memberString = "";
+            var dependenciesString = "";
+    
+            if (cppCodeGen.haveSR && cppCodeGen.genOptions.useQt) {
+                headerString += "#include <QObject>\n";
+            }
+    
+            for (i = 0; i < cppCodeGen.notRecType.length; i++) {
+                headerString += "#include <" + cppCodeGen.notRecType[i] + ">\n";
+            }
+    
+            if (Repository.getRelationshipsOf(elem).length <= 0) {
+                return "";
+            }
+            var realizations = Repository.getRelationshipsOf(elem, function (rel) {
+                return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization);
+            });
+    
+            // for comparaison
+            var associationComp = [];
+    
+            // check for interface or class
+            for (i = 0; i < realizations.length; i++) {
+                var realize = realizations[i];
+                if (realize.target === elem) {
+                    continue;
+                }
+                headerString += "#include \"" + cppCodeGen.trackingHeader(elem, realize.target) + ".h\"\n";
+                associationComp.push(realize.target);
+            }
+    
+            // begin check for association member variable
+            for (i = 0; i < cppCodeGen.toIncluded.length; i++) {
+                var target = cppCodeGen.toIncluded[i];
+    
+                if (target === elem) {
+                    continue;
+                }
+                
+                headerString += "#include \"" + cppCodeGen.trackingHeader(elem, target) + ".h\"\n";
+                associationComp.push(target);
+            }
+    
+            memberString += cppCodeGen.writeClassesDeclarations();
+    
+            for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
+                var target = cppCodeGen.toDeclared[i];
+                if (target === elem) {
+                    continue;
+                }
+                associationComp.push(target);
+            }
+            // end check for association member variable
+    
+            // check for dependencies class
+            var dependencies = elem.getDependencies();
+    
+            if (dependencies.length > 0) {
+                for (i = 0; i < dependencies.length; i++) {
+                    var target = dependencies[i];
+                    if (associationComp.contains(target) ||
+                        !(target instanceof type.UMLClassifier)) {
+                        continue;
+                    }
+                    dependenciesString += "#include \"" + cppCodeGen.trackingHeader(elem, target) + ".h\"\n";
+                    associationComp.push(target);
+                }
+            }
+    
+            return headerString + dependenciesString + memberString;
+        };
+    
+        var writeHeaderNamespaces = function (elem, cppCodeGen, funct) {
+            var codeWriter = new CodeGenUtils.CodeWriter(cppCodeGen.getIndentString(cppCodeGen.genOptions));
+            var namespaces = cppCodeGen.getNamespaces(elem);
+    
+            if (namespaces.length > 0) {
+                var i;
+                for (i = 0; i < namespaces.length; i++) {
+                    codeWriter.writeLine("namespace " + namespaces[i] + " {");
+                }
+                codeWriter.writeLine();
+    
+                funct(codeWriter, elem, cppCodeGen);
+    
+                codeWriter.writeLine();
+                for (i = 0; i < namespaces.length; i++) {
+                    codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+                }
+            } else {
+                funct(codeWriter, elem, cppCodeGen);
+            }
+            
+            return codeWriter.getData();
+        };
+    
         var namespaces = this.getNamespaces(elem).join("_");
-        if (namespaces.length > 0) { namespaces += "_"; }
+        if (namespaces.length > 0) {
+            namespaces += "_";
+        }
+        
         var headerString = "_" + namespaces.toUpperCase() + elem.name.toUpperCase() + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
-        var includePart = this.getIncludePart(elem);
+
         codeWriter.writeLine(copyrightHeader);
         codeWriter.writeLine();
         codeWriter.writeLine("#ifndef " + headerString);
         codeWriter.writeLine("#define " + headerString);
         codeWriter.writeLine();
 
+        var classDeclaration = writeHeaderNamespaces(elem, this, funct);
+        var includePart = getIncludePart(elem, this);
+
         if (includePart.length > 0) {
             codeWriter.writeLine(includePart);
         }
       
-        this.writeHeaderNamespaces(codeWriter, elem, funct);
+        codeWriter.writeLine(classDeclaration);
 
         codeWriter.writeLine();
         codeWriter.writeLine("#endif //" + headerString);
@@ -550,6 +723,14 @@ define(function (require, exports, module) {
         codeWriter.writeLine(copyrightHeader);
         codeWriter.writeLine();
         codeWriter.writeLine("#include \"" + elem.name + ".h\"");
+        
+        for (var i = 0; i < this.toDeclared.length; i++) {
+            var target = this.toDeclared[i];
+            if (target === elem) {
+                continue;
+            }
+            codeWriter.writeLine("#include \"" + this.trackingHeader(elem, target) + ".h\"");
+        }
         codeWriter.writeLine();
 
         if (this.needComment) {
@@ -594,90 +775,197 @@ define(function (require, exports, module) {
     };
 
     /**
-     * get list of namespace element
+     * verif if elem is a great package
+     * @param {Object} elem 
+     * @return {boolean}
+     */
+    function isGreatUMLPackage(elem) {
+        return (elem instanceof type.UMLPackage &&
+            !(elem instanceof type.UMLModel) &&
+            !(elem instanceof type.UMLProfile));
+    }
+
+    /**
+     * get string list of namespace element
      *
      * @param {Object} elem
      * @return {Array <String>}
      */
     CppCodeGenerator.prototype.getNamespaces = function (elem) {
         var namespaces = [];
-        var greatNamespaces = [];
-        var i;
-
         var parentElem = elem._parent;
+
         while (parentElem) {
-            if (parentElem instanceof type.UMLPackage &&
-               !(parentElem instanceof type.UMLModel) &&
-               !(parentElem instanceof type.UMLProfile)) {
+            if (isGreatUMLPackage(parentElem)) {
                 namespaces.push(parentElem.name);
             }
             parentElem = parentElem._parent;
         }
 
-        for (i = 0; i < namespaces.length; i++) {
-            greatNamespaces.push(namespaces[(namespaces.length - 1) - i]);
+        if (namespaces.length > 1) {
+            namespaces.reverse();
         }
-
-        return greatNamespaces;
+        
+        return namespaces;
     };
 
     /**
      * get all parents of the elem (package only)
      * @param {Object} elem 
+     * @param {Boolean} absolute
      * @return {String}
      */
-    CppCodeGenerator.prototype.getNamespacesSpecifierStr = function (elem) {
+    CppCodeGenerator.prototype.getNamespacesSpecifierStr = function (elem, absolute) {
         var namespaces = this.getNamespaces(elem);
-        var namespacesString = "";
-        if (namespaces.length > 0) {
-            namespacesString += namespaces.join("::") + "::";
-        }
-        return namespacesString;
+        var namespacesStr =  namespaces.join("::");
+        
+        namespacesStr += (namespacesStr.length && !absolute) ? "::" : "";
+
+        return namespacesStr;
     };
     
     /**
-     * get all parents of the elem (package and class)
+     * get all parents of the elem (class only)
      * @param {Object} elem 
-     * @return {String}
+     * @return {type.UMLClass}
      */
-    CppCodeGenerator.prototype.getContainersSpecifierStr = function (elem) {
+    CppCodeGenerator.prototype.getAnchestorsClass = function (elem) {
         var t_elem = elem;
         var specifiers = [];
-        var invSpecifiers = [];
 
         while (t_elem._parent instanceof type.UMLClass) {
-            invSpecifiers.push(t_elem._parent.name);
+            specifiers.push(t_elem._parent);
             t_elem = t_elem._parent;
         }
+        specifiers.reverse();
 
-        for (var i = 0; i < invSpecifiers.length; i++) {
-            specifiers.push(invSpecifiers[(invSpecifiers.length - 1) - i]);
-        }
-
-        return this.getNamespacesSpecifierStr(t_elem) + specifiers.join("::");
-
+        return specifiers;
     };
 
-    CppCodeGenerator.prototype.writeHeaderNamespaces = function (codeWriter, elem, funct) {
-        var namespaces = this.getNamespaces(elem);
+    /**
+     * get all parents of the elem (class only) to string
+     * @param {Object} elem 
+     * @param {Boolean} absolute
+     * @return {String}
+     */
+    CppCodeGenerator.prototype.getClassSpecifierStr = function (elem, absolute) {
+        var getAnchestorsClassStr = function (elem) {
+            var t_elem = elem;
+            var specifiers = [];
 
-        if (namespaces.length > 0) {
-            var i;
-            for (i = 0; i < namespaces.length; i++) {
-                codeWriter.writeLine("namespace " + namespaces[i] + " {");
+            while (t_elem._parent instanceof type.UMLClass) {
+                specifiers.push(t_elem._parent.name);
+                t_elem = t_elem._parent;
             }
-            codeWriter.writeLine();
+            specifiers.reverse();
 
-            funct(codeWriter, elem, this);
+            return specifiers;
+        };
 
-            codeWriter.writeLine();
-            for (i = 0; i < namespaces.length; i++) {
-                codeWriter.writeLine("} // end of namespace " + namespaces[(namespaces.length - 1) - i]);
+        var classStr = "";
+
+        classStr += getAnchestorsClassStr(elem).join("::");
+        classStr += (classStr.length && !absolute) ? "::" : "";
+
+        return classStr;
+    };
+
+    /**
+     * get all parents of the elem (package and class)
+     * @param {Object} elem 
+     * @param {Boolean} absolute
+     * @return {String}
+     */
+    CppCodeGenerator.prototype.getContainersSpecifierStr = function (elem, absolute) {
+        var classStr = this.getClassSpecifierStr(elem, absolute);
+        var namespacesStr = this.getNamespacesSpecifierStr(elem, (classStr.length || !absolute ? false : true));
+
+        return namespacesStr + classStr;
+    };
+
+    /**
+     * write and arrange class declarations
+     */
+    CppCodeGenerator.prototype.writeClassesDeclarations = function () {
+        var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(this.genOptions));
+
+        var getAnchestor = function (elem) {
+            var anchestor = [];
+            var parentElem = elem._parent;
+    
+            while (parentElem) {
+                if (isGreatUMLPackage(parentElem)) {
+                    anchestor.push(parentElem);
+                }
+                parentElem = parentElem._parent;
             }
-        } else {
-            funct(codeWriter, elem, this);
+    
+            if (anchestor.length > 1) {
+                anchestor.reverse();
+            } else if (!anchestor.length) {
+                anchestor.push(elem);
+            }
+            
+            return anchestor;
+        };
+
+        var isUseful = function (elem, elemTab) {
+            for (var i = 0; i < elemTab.length; i++) {
+                var anchestors = getAnchestor(elemTab[i]);
+                
+                if (anchestors.contains(elem)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+    
+        var writeClassDeclaration = function (elem, codeWriter, elemTab) {
+            if ((elem instanceof type.UMLClass) && elemTab.contains(elem)) {
+                codeWriter.indent();
+                codeWriter.writeLine("class " + elem.name + ";");
+                codeWriter.outdent();
+            } else if (isUseful(elem, elemTab)) {
+                codeWriter.writeLine("namespace " + elem.name + " {");
+                var ownElems = elem.ownedElements;
+                for (var i = 0; i < ownElems.length; i++) {
+                    writeClassDeclaration(ownElems[i], codeWriter, elemTab);
+                }
+                codeWriter.writeLine("} // end of namespace " + elem.name);
+            }
+        };
+
+        var elemTab = this.toDeclared;
+        var anchestors = [];
+
+        // get all common anchestor
+        for (var i = 0; i < elemTab.length; i++) {
+            var anchestor = getAnchestor(elemTab[i])[0];
+            
+            if (anchestors.length) {
+                if (anchestors.contains(anchestor)) {
+                    continue;
+                }
+            }
+            anchestors.push(anchestor);
         }
-        
+
+        // for the beaty of code
+        if (elemTab.length) {
+            codeWriter.writeLine();
+        }
+
+        // // locate the class in each subAnchestor of each achestor
+        for (i = 0; i < anchestors.length; i++) {
+            writeClassDeclaration(anchestors[i], codeWriter, elemTab);
+        }
+
+        // for the beaty of code
+        if (elemTab.length) {
+            codeWriter.writeLine();
+        }
+
         return codeWriter.getData();
     };
 
@@ -765,102 +1053,6 @@ define(function (require, exports, module) {
         header += targetString;
 
         return header;
-    };
-
-    CppCodeGenerator.prototype.getAssociatedMemberType = function (elem) {
-        if (Repository.getRelationshipsOf(elem).length > 0) {
-            var i;
-            var associatedMemberType = [];
-
-            var associations = Repository.getRelationshipsOf(elem, function (rel) {
-                return (rel instanceof type.UMLAssociation);
-            });
-
-            for (i = 0; i < associations.length; i++) {
-                var asso = associations[i];
-                var target;
-                if (asso.end1.reference === elem && asso.end2.navigable === true && asso.end2.name.length !== 0) {
-                    target = asso.end2.reference;
-                } else if (asso.end2.reference === elem && asso.end1.navigable === true && asso.end1.name.length !== 0) {
-                    target = asso.end1.reference;
-                } else {
-                    continue;
-                }
-                if (target === elem) {
-                    continue;
-                }
-                associatedMemberType.push(target);
-            }
-            return associatedMemberType;
-        }
-    };
-
-    /**
-     * Parsing include header
-     *
-     * @param {Object} elem
-     * @return {Object} string
-     */
-    CppCodeGenerator.prototype.getIncludePart = function (elem) {
-        var i;
-        var headerString = "";
-        var memberString = "";
-        var dependenciesString = "";
-
-        if (this.haveSR && this.genOptions.useQt) {
-            headerString += "#include <QObject>\n";
-        }
-
-        if (Repository.getRelationshipsOf(elem).length <= 0) {
-            return "";
-        }
-        var realizations = Repository.getRelationshipsOf(elem, function (rel) {
-            return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization);
-        });
-
-        // for comparaison
-        var associationComp = [];
-
-        // check for interface or class
-        for (i = 0; i < realizations.length; i++) {
-            var realize = realizations[i];
-            if (realize.target === elem) {
-                continue;
-            }
-            headerString += "#include \"" + this.trackingHeader(elem, realize.target) + ".h\"\n";
-            associationComp.push(realize.target);
-        }
-
-        // check for association member variable
-        var associatedMemberType = this.getAssociatedMemberType(elem);
-
-        if (associatedMemberType.length > 0) {
-            for (i = 0; i < associatedMemberType.length; i++) {
-                var target = associatedMemberType[i];
-                if (associationComp.contains(target)) {
-                    continue;
-                }
-                memberString += "#include \"" + this.trackingHeader(elem, target) + ".h\"\n";
-                associationComp.push(target);
-            }
-        }
-
-        // check for dependencies class
-        var dependencies = elem.getDependencies();
-
-        if (dependencies.length > 0) {
-            for (i = 0; i < dependencies.length; i++) {
-                var target = dependencies[i];
-                if (associationComp.contains(target) ||
-                    !(target instanceof type.UMLClassifier)) {
-                    continue;
-                }
-                dependenciesString += "#include \"" + this.trackingHeader(elem, target) + ".h\"\n";
-                associationComp.push(target);
-            }
-        }
-
-        return headerString + memberString + dependenciesString;
     };
 
     /**
@@ -953,7 +1145,8 @@ define(function (require, exports, module) {
                 if (_multiplicity.length > 0) {
                     if (_.contains(["0..*", "1..*", "*"], _multiplicity.trim())) {
                         if (this.genOptions.useVector) {
-                            returnType = "vector<" + returnType + ">";
+                            returnType = "std::vector<" + returnType + ">";
+                            this.parseUnrecognizedType("vector");
                         } else {
                             returnType += "*";
                         }
@@ -983,7 +1176,7 @@ define(function (require, exports, module) {
                 }
 
                 var indentLine = this.getIndentString(this.genOptions);
-                var specifier = this.getContainersSpecifierStr(elem) + templateSpecifier + "::";
+                var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
 
                 methodStr += specifier;
                 methodStr += elem.name;
@@ -1029,7 +1222,7 @@ define(function (require, exports, module) {
                                     methodStr += indentLine + "return null;";
                                 }
                             }
-                            docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " :    " + validReturnParam.documentation : "");
+                            docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " : " + validReturnParam.documentation : "");
                         }
                     }
                     methodStr += "\n}";
@@ -1097,10 +1290,8 @@ define(function (require, exports, module) {
                 }
                 paramStr += params.join(", ");
                 
-                var specifier = this.getContainersSpecifierStr(elemSignal);
-                if (specifier.length > 0) {
-                    specifier += "::";
-                }
+                var specifier = this.getContainersSpecifierStr(elemSignal, false);
+
                 docs += "\nFrom signal: " + specifier + elemSignal.name;
             }
 
@@ -1118,7 +1309,7 @@ define(function (require, exports, module) {
                 }
 
                 var indentLine = this.getIndentString(this.genOptions);
-                var specifier = this.getContainersSpecifierStr(elem) + templateSpecifier + "::";
+                var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
 
                 methodStr += "void " + specifier + elem.name + "(" + paramStr + ")";
 
@@ -1226,10 +1417,12 @@ define(function (require, exports, module) {
      */
     CppCodeGenerator.prototype.getType = function (elem) {
         var _type = "void";
+        var _toDecl = false;
+        var canParseElemType = false;
 
         if (elem instanceof type.UMLAssociationEnd) { // member variable from association
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
-                _type = this.getNamespacesSpecifierStr(elem.reference) + elem.reference.name;
+                _type = this.getContainersSpecifierStr(elem.reference, false) + elem.reference.name;
 
                 var associations = Repository.getRelationshipsOf(elem.reference, function (rel) {
                     return (rel instanceof type.UMLAssociation);
@@ -1252,17 +1445,26 @@ define(function (require, exports, module) {
 
                 if (oppositeElem.aggregation !== UML.AK_COMPOSITE) {
                     _type += "*";
+                    _toDecl = true;
                 }
+                this.parseElemType(elem.reference, _toDecl);
             }
         } else { // member variable inside class
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
-                _type = this.getNamespacesSpecifierStr(elem.type) + elem.type.name;
+                _type = this.getContainersSpecifierStr(elem.type, false) + elem.type.name;
+                canParseElemType = true;
             } else if (_.isString(elem.type) && elem.type.length > 0) {
                 _type = elem.type;
+                this.parseUnrecognizedType(_type);
             }
 
             if (elem.aggregation === UML.AK_SHARED) {
                 _type += "*";
+                _toDecl = true;
+            }
+
+            if (canParseElemType) {
+                this.parseElemType(elem.type, _toDecl);
             }
         }
 
@@ -1295,7 +1497,8 @@ define(function (require, exports, module) {
         if (elem.multiplicity) {
             if (_.contains(["0..*", "1..*", "*"], elem.multiplicity.trim())) {
                 if (this.genOptions.useVector) {
-                    vType = "vector<" + vType + ">";
+                    vType = "std::vector<" + vType + ">";
+                    this.parseUnrecognizedType("vector");
                 } else {
                     vType += "*";
                 }
