@@ -1150,7 +1150,7 @@ define(function (require, exports, module) {
                         } else {
                             returnType += "*";
                         }
-                    } else if (_multiplicity !== "1" && _multiplicity !== "0..1") {
+                    } else if (_multiplicity !== "1") {
                         returnType += "*";
                     }
                 }
@@ -1164,17 +1164,18 @@ define(function (require, exports, module) {
 
             if (isCppBody) {
                 var templateSpecifier = "";
-                var templateParameter = this.getTemplateParameter(elem);
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
+                var templateParameter = this.getTemplateParameter(elem);
 
-                if (templateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem);
-                    methodStr = templateParameter + "\n" + methodStr;
-                } else if (parentTemplateParameter.length > 0) {
+                if (parentTemplateParameter.length > 0) {
                     templateSpecifier = this.getTemplateParameterNames(elem._parent);
                     methodStr = parentTemplateParameter + "\n" + methodStr;
                 }
-
+                if (templateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem);
+                    methodStr = templateParameter + "\n" + methodStr;
+                }
+                
                 var indentLine = this.getIndentString(this.genOptions);
                 var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
 
@@ -1297,17 +1298,18 @@ define(function (require, exports, module) {
 
             if (isCppBody) {
                 var templateSpecifier = "";
-                var templateParameter = this.getTemplateParameter(elem);
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
+                var templateParameter = this.getTemplateParameter(elem);
 
-                if (templateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem);
-                    methodStr = templateParameter + "\n" + methodStr;
-                } else if (parentTemplateParameter.length > 0) {
+                if (parentTemplateParameter.length > 0) {
                     templateSpecifier = this.getTemplateParameterNames(elem._parent);
                     methodStr = parentTemplateParameter + "\n" + methodStr;
                 }
-
+                if (templateParameter.length > 0) {
+                    templateSpecifier = this.getTemplateParameterNames(elem);
+                    methodStr = templateParameter + "\n" + methodStr;
+                }
+                
                 var indentLine = this.getIndentString(this.genOptions);
                 var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
 
@@ -1502,7 +1504,9 @@ define(function (require, exports, module) {
                 } else {
                     vType += "*";
                 }
-            } else if (elem.multiplicity !== "1" && elem.multiplicity !== "0..1") {
+            } else if (elem.multiplicity === "0..1") {
+                vType += "*";
+            } else if (elem.multiplicity !== "1") {
                 if (elem.multiplicity.match(/^\d+$/)) { // number
                     vName += "[" + elem.multiplicity + "]";
                 } else {
