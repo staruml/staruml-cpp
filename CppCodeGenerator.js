@@ -92,7 +92,7 @@ define(function (require, exports, module) {
 
         var doc = "";
         if (ProjectManager.getProject().name && ProjectManager.getProject().name.length > 0) {
-            doc += "\nProject " + ProjectManager.getProject().name;
+            doc += "\n@Project " + ProjectManager.getProject().name;
         }
         if (ProjectManager.getProject().author && ProjectManager.getProject().author.length > 0) {
             doc += "\n@author " + ProjectManager.getProject().author;
@@ -383,8 +383,7 @@ define(function (require, exports, module) {
             file;
 
         // Package -> as namespace or not
-        if (elem instanceof type.UMLPackage ||
-            elem instanceof type.UMLComponent) {
+        if (elem instanceof type.UMLPackage) {
             fullPath = path + "/" + elem.name;
             directory = FileSystem.getDirectoryForPath(fullPath);
             directory.create(function (err, stat) {
@@ -419,13 +418,42 @@ define(function (require, exports, module) {
             self.haveSR = SRState(elem);
 
             // generate class header elem_name.h
-            file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
+            var H_file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
+            //FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
+			
+			var H_first = true;
+			
+			Async.doSequentially([H_file, H_file], function (__file) {
+				var __result = new $.Deferred();
+				
+				if (H_first) {
+					__file.read({}, function (err, data, stat) {
+						if (!err) {
+							self.opImplSaved = self.getAllCustomOpImpl(data);
+							if (self.opImplSaved.length > 0) {
+								self.needComment = false;
+							}
+							__result.resolve();
+						} else {
+							__result.reject(err);
+						}
+					});
+					
+					H_first = false;
+				} else {
+					FileUtils.writeText(__file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(__result.resolve, __result.reject);
+				}
+				
+				return __result.promise();
+			}, false)
+			.then(result.resolve, result.reject);
 
             // generate class cpp elem_name.cpp
             if (options.genCpp) {
                 file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_CPP));
                 var first = true; // for the sequence identifiation
+                
+                self.needComment = true; // restore to default
 
                 Async.doSequentially([file, file], function (_file) {
                     var _result = new $.Deferred();
@@ -520,6 +548,10 @@ define(function (require, exports, module) {
         if (_CPP_DEFAULT_TYPE.contains(typeName) || this.notRecType.contains(typeName)) {
             return;
         }
+        
+        if (this.haveSR && this.genOptions.useQt && typeName == "QObject") {
+			return;
+		}
 
         this.notRecType.push(typeName);
     };
@@ -638,7 +670,7 @@ define(function (require, exports, module) {
             namespaces += "_";
         }
         
-        var headerString = "_" + namespaces.toUpperCase() + elem.name.toUpperCase() + "_H";
+        var headerString = namespaces.toUpperCase() + elem.name.toUpperCase() + "_H";
         var codeWriter = new CodeGenUtils.CodeWriter(this.getIndentString(options));
 
         codeWriter.writeLine(copyrightHeader);
@@ -653,7 +685,17 @@ define(function (require, exports, module) {
         if (includePart.length > 0) {
             codeWriter.writeLine(includePart);
         }
-      
+        
+        if (this.needComment) {
+			codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id [R]\" AND \"//end op._id\"");
+			codeWriter.writeLine("// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION");
+			codeWriter.writeLine("// TO SAVE CHANGE, JUST REMOVE THE \"[R]\" (RESET OPTION) IN THE \"//begin\" LINE OF THE CURRENT OPERATION");
+			codeWriter.writeLine();
+		}
+		
+		codeWriter.writeLine(this.writeCustomCode(elem));
+		codeWriter.writeLine();
+		
         codeWriter.writeLine(classDeclaration);
 
         codeWriter.writeLine();
@@ -830,11 +872,11 @@ define(function (require, exports, module) {
      * @return {type.UMLClass}
      */
     CppCodeGenerator.prototype.getAnchestorsClass = function (elem) {
-        var t_elem = elem;
+        var t_elem = elem._parent;
         var specifiers = [];
 
-        while (t_elem._parent instanceof type.UMLClass) {
-            specifiers.push(t_elem._parent);
+        while (t_elem instanceof type.UMLClass) {
+            specifiers.push(t_elem);
             t_elem = t_elem._parent;
         }
         specifiers.reverse();
@@ -848,13 +890,17 @@ define(function (require, exports, module) {
      * @param {Boolean} absolute
      * @return {String}
      */
-    CppCodeGenerator.prototype.getClassSpecifierStr = function (elem, absolute) {
-        var getAnchestorsClassStr = function (elem) {
-            var t_elem = elem;
+    CppCodeGenerator.prototype.getAnchestorClassSpecifierStr = function (elem, absolute) {
+        var getAnchestorsClassStr = function (elem, cppCodeGen) {
+            var t_elem = elem._parent;
             var specifiers = [];
+            var templateSpecifier = "";
 
-            while (t_elem._parent instanceof type.UMLClass) {
-                specifiers.push(t_elem._parent.name);
+            while (t_elem instanceof type.UMLClass) {
+                if (cppCodeGen.getTemplateParameter(t_elem).length > 0) {
+                    templateSpecifier = cppCodeGen.getTemplateParameterNames(t_elem);
+                }
+                specifiers.push(t_elem.name + templateSpecifier);
                 t_elem = t_elem._parent;
             }
             specifiers.reverse();
@@ -864,7 +910,7 @@ define(function (require, exports, module) {
 
         var classStr = "";
 
-        classStr += getAnchestorsClassStr(elem).join("::");
+        classStr += getAnchestorsClassStr(elem, this).join("::");
         classStr += (classStr.length && !absolute) ? "::" : "";
 
         return classStr;
@@ -877,7 +923,7 @@ define(function (require, exports, module) {
      * @return {String}
      */
     CppCodeGenerator.prototype.getContainersSpecifierStr = function (elem, absolute) {
-        var classStr = this.getClassSpecifierStr(elem, absolute);
+        var classStr = this.getAnchestorClassSpecifierStr(elem, absolute);
         var namespacesStr = this.getNamespacesSpecifierStr(elem, (classStr.length || !absolute ? false : true));
 
         return namespacesStr + classStr;
@@ -923,9 +969,7 @@ define(function (require, exports, module) {
     
         var writeClassDeclaration = function (elem, codeWriter, elemTab) {
             if ((elem instanceof type.UMLClass) && elemTab.contains(elem)) {
-                codeWriter.indent();
                 codeWriter.writeLine("class " + elem.name + ";");
-                codeWriter.outdent();
             } else if (isUseful(elem, elemTab)) {
                 codeWriter.writeLine("namespace " + elem.name + " {");
                 var ownElems = elem.ownedElements;
@@ -1162,24 +1206,22 @@ define(function (require, exports, module) {
                 methodStr += returnType + " ";
             }
 
+            var templateParameter = this.getTemplateParameter(elem);
+
+            if (templateParameter.length > 0) {
+                methodStr = templateParameter + "\n" + methodStr;
+            }
+
             if (isCppBody) {
-                var templateSpecifier = "";
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
-                var templateParameter = this.getTemplateParameter(elem);
 
                 if (parentTemplateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem._parent);
                     methodStr = parentTemplateParameter + "\n" + methodStr;
-                }
-                if (templateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem);
-                    methodStr = templateParameter + "\n" + methodStr;
                 }
                 
                 var indentLine = this.getIndentString(this.genOptions);
-                var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
 
-                methodStr += specifier;
+                methodStr += this.getContainersSpecifierStr(elem, false);
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")";
 
@@ -1299,19 +1341,13 @@ define(function (require, exports, module) {
             if (isCppBody) {
                 var templateSpecifier = "";
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
-                var templateParameter = this.getTemplateParameter(elem);
 
                 if (parentTemplateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem._parent);
                     methodStr = parentTemplateParameter + "\n" + methodStr;
-                }
-                if (templateParameter.length > 0) {
-                    templateSpecifier = this.getTemplateParameterNames(elem);
-                    methodStr = templateParameter + "\n" + methodStr;
                 }
                 
                 var indentLine = this.getIndentString(this.genOptions);
-                var specifier = this.getContainersSpecifierStr(elem, true) + templateSpecifier + "::";
+                var specifier = this.getContainersSpecifierStr(elem, false);
 
                 methodStr += "void " + specifier + elem.name + "(" + paramStr + ")";
 
@@ -1426,6 +1462,10 @@ define(function (require, exports, module) {
             if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
                 _type = this.getContainersSpecifierStr(elem.reference, false) + elem.reference.name;
 
+                if (this.getTemplateParameter(elem.reference).length > 0) {
+                    _type += this.getTemplateParameterNames(elem.reference);
+                }
+                
                 var associations = Repository.getRelationshipsOf(elem.reference, function (rel) {
                     return (rel instanceof type.UMLAssociation);
                 });
@@ -1454,6 +1494,11 @@ define(function (require, exports, module) {
         } else { // member variable inside class
             if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
                 _type = this.getContainersSpecifierStr(elem.type, false) + elem.type.name;
+
+                if (this.getTemplateParameter(elem.type).length > 0) {
+                    _type += this.getTemplateParameterNames(elem.type);
+                }
+                
                 canParseElemType = true;
             } else if (_.isString(elem.type) && elem.type.length > 0) {
                 _type = elem.type;
