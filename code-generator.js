@@ -102,7 +102,7 @@ class CppCodeGenerator {
       for (i = 0; i < modifierList.length; i++) {
         modifierStr += modifierList[i] + ' '
       }
-      codeWriter.writeLine(modifierStr + 'enum ' + elem.name + ' { ' + _.pluck(elem.literals, 'name').join(', ') + ' };')
+      codeWriter.writeLine(modifierStr + 'enum ' + elem.name + ' { ' + _.map(elem.literals, 'name').join(', ') + ' };')
     }
 
     var writeClassHeader = (codeWriter, elem, cppCodeGen) => {
