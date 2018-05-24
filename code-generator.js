@@ -27,7 +27,6 @@ const _CPP_CODE_GEN_CPP = 'cpp'
 
 const path = require('path')
 const fs = require('fs')
-const _ = require('lodash')
 const codegen = require('./codegen-utils')
 
 var copyrightHeader = '/* Test header @ toori67 \n * This is Test\n * also test\n * also test again\n */'
@@ -102,7 +101,7 @@ class CppCodeGenerator {
       for (i = 0; i < modifierList.length; i++) {
         modifierStr += modifierList[i] + ' '
       }
-      codeWriter.writeLine(modifierStr + 'enum ' + elem.name + ' { ' + _.map(elem.literals, 'name').join(', ') + ' };')
+      codeWriter.writeLine(modifierStr + 'enum ' + elem.name + ' { ' + elem.literals.map(lit => lit.name).join(', ') + ' };')
     }
 
     var writeClassHeader = (codeWriter, elem, cppCodeGen) => {
@@ -233,7 +232,7 @@ class CppCodeGenerator {
       // parsing class
       var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0))
       var docs = elem.name + ' implementation\n\n'
-      if (_.isString(elem.documentation)) {
+      if (typeof elem.documentation === 'string') {
         docs += elem.documentation
       }
       codeWriter.writeLine(cppCodeGen.getDocuments(docs))
@@ -526,10 +525,10 @@ class CppCodeGenerator {
         methodStr += 'virtual '
       }
 
-      var returnTypeParam = _.filter(elem.parameters, function (params) {
+      var returnTypeParam = elem.parameters.filter(function (params) {
         return params.direction === 'return'
       })
-      var inputParams = _.filter(elem.parameters, function (params) {
+      var inputParams = elem.parameters.filter(function (params) {
         return params.direction === 'in'
       })
       var inputParamStrings = []
@@ -601,7 +600,7 @@ class CppCodeGenerator {
    */
   getDocuments (text) {
     var docs = ''
-    if (_.isString(text) && text.length !== 0) {
+    if ((typeof text === 'string') && text.length !== 0) {
       var lines = text.trim().split('\n')
       docs += '/**\n'
       var i
@@ -666,14 +665,14 @@ class CppCodeGenerator {
     } else { // member variable inside class
       if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
         _type = elem.type.name
-      } else if (_.isString(elem.type) && elem.type.length > 0) {
+      } else if ((typeof elem.type === 'string') && elem.type.length > 0) {
         _type = elem.type
       }
     }
 
     // multiplicity
     if (elem.multiplicity) {
-      if (_.includes(['0..*', '1..*', '*'], elem.multiplicity.trim())) {
+      if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
         if (elem.isOrdered === true) {
           _type = 'vector<' + _type + '>'
         } else {
