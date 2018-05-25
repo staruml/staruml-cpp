@@ -1,17 +1,18 @@
 {
-    "name": "staruml.cplus",
-    "title": "C++",
-    "description": "C++ code generation and reverse engineering.",
-    "homepage": "https://github.com/staruml/Cpp",
-    "keywords": ["c++"],
-    "version": "0.9.1",
-    "author": {
-        "name": "Dongjoon Lee",
-        "email": "joon1251@gmail.com",
-        "url": "https://github.com/dongjoon1251"
-    },
-    "license": "MIT",
-    "engines": {
-        "staruml": ">=2.0.0"
-    }
+  "name": "staruml.cplus",
+  "title": "C++",
+  "description": "C++ code generation and reverse engineering.",
+  "homepage": "https://github.com/staruml/staruml-cpp",
+  "issues": "https://github.com/staruml/staruml-cpp/issues",
+  "keywords": ["c++"],
+  "version": "0.9.2",
+  "author": {
+    "name": "Dongjoon Lee",
+    "email": "joon1251@gmail.com",
+    "url": "https://github.com/dongjoon1251"
+  },
+  "license": "MIT",
+  "engines": {
+    "staruml": "^3.0.0"
+  }
 }
