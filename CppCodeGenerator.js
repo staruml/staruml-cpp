@@ -92,7 +92,7 @@ define(function (require, exports, module) {
 
         var doc = "";
         if (ProjectManager.getProject().name && ProjectManager.getProject().name.length > 0) {
-            doc += "\n@Project " + ProjectManager.getProject().name;
+            doc += "\nProject " + ProjectManager.getProject().name;
         }
         if (ProjectManager.getProject().author && ProjectManager.getProject().author.length > 0) {
             doc += "\n@author " + ProjectManager.getProject().author;
@@ -419,7 +419,6 @@ define(function (require, exports, module) {
 
             // generate class header elem_name.h
             var H_file = FileSystem.getFileForPath(getFilePath(_CPP_CODE_GEN_H));
-            //FileUtils.writeText(file, self.writeHeaderSkeletonCode(elem, options, writeClassHeader), true).then(result.resolve, result.reject);
 			
 			var H_first = true;
 			
@@ -687,9 +686,8 @@ define(function (require, exports, module) {
         }
         
         if (this.needComment) {
-			codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id [R]\" AND \"//end op._id\"");
+			codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id\" AND \"//end op._id\"");
 			codeWriter.writeLine("// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION");
-			codeWriter.writeLine("// TO SAVE CHANGE, JUST REMOVE THE \"[R]\" (RESET OPTION) IN THE \"//begin\" LINE OF THE CURRENT OPERATION");
 			codeWriter.writeLine();
 		}
 		
@@ -733,10 +731,7 @@ define(function (require, exports, module) {
             var operationBody = new OperationBody();
 
             operationBody.Id = cell[1];
-            // continue if the contents is overridable
-            if (cell.length > 2 && cell[2] === "[R]") {
-                continue;
-            }
+            
             cell = rowContents[++i].split(" ");
 
             while (cell[0] !== "//end" && cell[1] !== operationBody.Id && (i < rowContents.length)) {
@@ -776,9 +771,8 @@ define(function (require, exports, module) {
         codeWriter.writeLine();
 
         if (this.needComment) {
-            codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id [R]\" AND \"//end op._id\"");
+            codeWriter.writeLine("// DON'T REMOVE ALL LINE CONTAINS \"//begin op._id\" AND \"//end op._id\"");
             codeWriter.writeLine("// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION");
-            codeWriter.writeLine("// TO SAVE CHANGE, JUST REMOVE THE \"[R]\" (RESET OPTION) IN THE \"//begin\" LINE OF THE CURRENT OPERATION");
             codeWriter.writeLine();
         }
 
@@ -792,22 +786,22 @@ define(function (require, exports, module) {
 
     CppCodeGenerator.prototype.writeCustomCode = function (elem) {
         var customCode = "";
-        var _reset = true;
+        var _firstGen = true;
         var _contents = "";
         // get the content of an identified operation
         if (this.opImplSaved.length > 0) {
             for (var i = 0; i < this.opImplSaved.length; i++) {
                 if (elem._id === this.opImplSaved[i].Id) {
-                    _reset = false;
+                    _firstGen = false;
                     _contents = this.opImplSaved[i].Content;
                     break;
                 }
             }
         }
         // write an operation identifier
-        customCode += "\n//begin " + elem._id + (_reset ? " [R]" : "") + "\n";
+        customCode += "\n//begin " + elem._id + "\n";
 
-        if (!_reset) { // restore all custom code of this method
+        if (!_firstGen) { // restore all custom code of this method
             customCode += _contents;
         }
 
@@ -1160,11 +1154,13 @@ define(function (require, exports, module) {
             var i;
             var methodStr = "";
             var returnType = "";
+			var returnTypeParam
             var validReturnParam;
-
-            var returnTypeParam = _.filter(elem.parameters, function (params) {
-                return params.direction === "return";
-            });
+			
+			// constructor and destructor verification
+			var _constructor_destructor = (elem.name === elem._parent.name || // for constructor
+											elem.name === ("~" + elem._parent.name)); // for destructor
+			
             var inputParams = _.filter(elem.parameters, function (params) {
                 return (params.direction === "in" || params.direction === "inout" || params.direction === "out");
             });
@@ -1173,36 +1169,37 @@ define(function (require, exports, module) {
                 var inputParam = inputParams[i];
                 inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody));
                 docs += "\n@param " + inputParam.name + (inputParam.documentation.length ? " : " + inputParam.documentation : "");
-            }
-            // constructor and destructor verification
-            var _constructor_destructor = (elem.name === elem._parent.name || // for constructor
-                                           elem.name === ("~" + elem._parent.name)); // for destructor
-            
+            }            
 
-            if (returnTypeParam.length > 0) {
-                validReturnParam = returnTypeParam[0];
-                returnType = this.getType(validReturnParam);
-                
-                var _multiplicity = validReturnParam.multiplicity;
-
-                // multiplicity
-                if (_multiplicity.length > 0) {
-                    if (_.contains(["0..*", "1..*", "*"], _multiplicity.trim())) {
-                        if (this.genOptions.useVector) {
-                            returnType = "std::vector<" + returnType + ">";
-                            this.parseUnrecognizedType("vector");
-                        } else {
-                            returnType += "*";
-                        }
-                    } else if (_multiplicity !== "1") {
-                        returnType += "*";
-                    }
-                }
-            } else {
-                returnType = "void";
-            }
 
             if (!_constructor_destructor) {
+				returnTypeParam = _.filter(elem.parameters, function (params) {
+					return params.direction === "return";
+				});
+				
+				if (returnTypeParam.length > 0) {
+					validReturnParam = returnTypeParam[0];
+					returnType = this.getType(validReturnParam);
+					
+					var _multiplicity = validReturnParam.multiplicity;
+					
+					// multiplicity
+					if (_multiplicity.length > 0) {
+						if (_.contains(["0..*", "1..*", "*"], _multiplicity.trim())) {
+							if (this.genOptions.useVector) {
+								returnType = "std::vector<" + returnType + ">";
+								this.parseUnrecognizedType("vector");
+							} else {
+								returnType += "*";
+							}
+						} else if (_multiplicity !== "1") {
+							returnType += "*";
+						}
+					}
+				} else {
+					returnType = "void";
+				}
+				
                 methodStr += returnType + " ";
             }
 
@@ -1212,6 +1209,7 @@ define(function (require, exports, module) {
                 methodStr = templateParameter + "\n" + methodStr;
             }
 
+            // if generation of body code is setted
             if (isCppBody) {
                 var parentTemplateParameter = this.getTemplateParameter(elem._parent);
 
@@ -1225,22 +1223,22 @@ define(function (require, exports, module) {
                 methodStr += elem.name;
                 methodStr += "(" + inputParamStrings.join(", ") + ")";
 
-                var _reset = true;
+                var _firstGen = true;
                 var _contents = "";
                 // get the content of an identified operation
                 if (this.opImplSaved.length > 0) {
                     for (var i = 0; i < this.opImplSaved.length; i++) {
                         if (elem._id === this.opImplSaved[i].Id) {
-                            _reset = false;
+                            _firstGen = false;
                             _contents = this.opImplSaved[i].Content;
                             break;
                         }
                     }
                 }
                 // write an operation identifier
-                methodStr += "\n//begin " + elem._id + (_reset ? " [R]" : "") + "\n";
+                methodStr += "\n//begin " + elem._id + "\n";
 
-                if (_reset) { // reset to default the body of this method (generated by this extension)
+                if (_firstGen) { // reset to default the body of this method (generated by this extension)
                     methodStr += "{\n";
                     if (!_constructor_destructor) {
                         if (returnTypeParam.length > 0) {
@@ -1351,22 +1349,22 @@ define(function (require, exports, module) {
 
                 methodStr += "void " + specifier + elem.name + "(" + paramStr + ")";
 
-                var _reset = true;
+                var _firstGen = true;
                 var _contents = "";
                 // get the content of an identified operation
                 if (this.opImplSaved.length > 0) {
                     for (var i = 0; i < this.opImplSaved.length; i++) {
                         if (elem._id === this.opImplSaved[i].Id) {
-                            _reset = false;
+                            _firstGen = false;
                             _contents = this.opImplSaved[i].Content;
                             break;
                         }
                     }
                 }
                 // write an operation identifier
-                methodStr += "\n//begin " + elem._id + (_reset ? " [R]" : "") + "\n";
+                methodStr += "\n//begin " + elem._id + "\n";
 
-                if (_reset) {
+                if (_firstGen) {
                     methodStr += "{\n";
 
                     methodStr += "\n}";
