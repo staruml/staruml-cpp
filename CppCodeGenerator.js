@@ -1196,6 +1196,7 @@ define(function (require, exports, module) {
 							returnType += "*";
 						}
 					}
+					docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " : " + validReturnParam.documentation : "");
 				} else {
 					returnType = "void";
 				}
@@ -1263,7 +1264,6 @@ define(function (require, exports, module) {
                                     methodStr += indentLine + "return null;";
                                 }
                             }
-                            docs += "\n@return " + returnType + (validReturnParam.documentation.length ? " : " + validReturnParam.documentation : "");
                         }
                     }
                     methodStr += "\n}";
@@ -1298,9 +1298,11 @@ define(function (require, exports, module) {
                     }
                 }
                 methodStr += ";";
+				
+				methodStr = "\n" + this.getDocuments(docs) + methodStr;
             }
 
-            return "\n" + this.getDocuments(docs) + methodStr;
+            return methodStr + "\n";
         }
     };
 
@@ -1380,9 +1382,11 @@ define(function (require, exports, module) {
                 }
 
                 methodStr += identifier + "void " + elem.name + "(" + paramStr + ");";
+				
+				methodStr = "\n" + this.getDocuments(docs) + methodStr;
             }
 
-            return "\n" + this.getDocuments(docs) + methodStr;
+            return methodStr + "\n";
         }
     };
 
