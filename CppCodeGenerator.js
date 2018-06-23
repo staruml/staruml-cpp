@@ -1149,6 +1149,11 @@ define(function (require, exports, module) {
      * @return {Object} string
      */
     CppCodeGenerator.prototype.getMethod = function (elem, isCppBody) {
+		// don't generate an abstract operation body
+		if (isCppBody && elem.isAbstract) {
+			return "";
+		}
+		
         if (elem.name.length > 0) {
             var docs = "@brief " + (elem.documentation.length ? elem.documentation : elem.name);
             var i;
