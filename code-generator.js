@@ -399,8 +399,8 @@ class CppCodeGenerator {
           return this.generate(child, fullPath, options)
         })
       }
-    // } else if (elem.stereotype.name === 'SystemModel') {
-      // nothing to generate because the SystemModel is taken for an element of the system
+    } else if (elem instanceof type.UMLPrimitiveType) {
+      // nothing to generate because the UMLPrimitiveType is taken for an element of the system
     } else {
       // get the default file (path) of each element
       file = getFilePath(_CPP_CODE_GEN_H)
@@ -600,12 +600,12 @@ class CppCodeGenerator {
         if (realize.target === elem) {
           continue
         }
-        // if (realize.target.stereotype.name === 'SystemModel') {
-        //   // nothing to generate because the SystemModel is taken for an element of the system
-        //   headerString += '#include <' + realize.target.name + '>\n'
-        // } else {
+        if (realize.target instanceof type.UMLPrimitiveType) {
+          // nothing to generate because the UMLPrimitiveType is taken for an element of the system
+          headerString += '#include <' + realize.target.name + '>\n'
+        } else {
           headerString += '#include "' + cppCodeGen.trackingHeader(elem, realize.target) + '.h"\n'
-        // }
+        }
 
         associationComp.push(realize.target)
       }
