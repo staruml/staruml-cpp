@@ -35,27 +35,48 @@ var versionString = 'v0.0.1'
 const _CPP_DEFAULT_TYPE = [
   'void',
   'bool',
-
   'char',
   'short',
   'int',
   'long',
   'float',
   'double',
-
-  'unsigned char',
-  'unsigned short',
-  'unsigned int',
-  'unsigned long',
-  'unsigned float',
-  'unsigned double',
+  'sbyte',
+  'decimal',
+  'auto',
 
   'uchar',
   'ushort',
   'uint',
   'ulong',
   'ufloat',
-  'udouble'
+  'udouble',
+
+  'short int',
+  'long int',
+  'long long',
+  'long double',
+
+  'signed int',
+  'signed char',
+  'signed long',
+  'signed float',
+  'signed short',
+  'signed short int',
+  'signed long int',
+  'signed long long',
+  'signed',
+
+  'unsigned',
+  'unsigned int',
+  'unsigned char',
+  'unsigned long',
+  'unsigned float',
+  'unsigned double',
+  'unsigned short',
+  'unsigned short int',
+  'unsigned long int',
+  'unsigned long long'
 ]
 
 /**
@@ -407,10 +428,8 @@ class CppCodeGenerator {
       try {
         fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK)
         this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
-        app.toast.info('updating ' + file)
-      } catch (err) {
-        app.toast.info('creating ' + file)
-      }
+        this.needComment = false
+      } catch (err) {}
 
       if (elem instanceof type.UMLClass) {
         this.haveSR = SRState(elem) // Signal and/or Reception found in the class elem
@@ -424,10 +443,7 @@ class CppCodeGenerator {
           try {
             fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK)
             this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
-            app.toast.info('updating ' + file)
-          } catch (err) {
-            app.toast.info('creating ' + file)
-          }
+          } catch (err) {}
     
           fs.writeFileSync(file, this.writeBodySkeletonCode(elem, options, writeClassBody))
         }
@@ -440,9 +456,9 @@ class CppCodeGenerator {
       } else if (elem instanceof type.UMLEnumeration) {
         // generate enumeration header ONLY elem_name.h
         fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration))
-      } else if (elem instanceof type.UMLSignal) {
-        // generate signal header ONLY elem_name.h
-        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeSignal))
+      // } else if (elem instanceof type.UMLSignal) {
+      //   // generate signal header ONLY elem_name.h
+      //   fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeSignal))
       }
     }
   }
@@ -518,7 +534,7 @@ class CppCodeGenerator {
       }
       cell = rowContents[i].split(' ')
       // catch the begin index
-      if (cell.length < 2 || cell[0] !== '//begin') {
+      if (cell.length < 2 || cell[0] !== '//<') {
         continue
       }
       var operationBody = new OperationBody()
@@ -527,7 +543,7 @@ class CppCodeGenerator {
       
       cell = rowContents[++i].split(' ')
 
-      while (cell[0] !== '//end' && cell[1] !== operationBody.Id && (i < rowContents.length)) {
+      while (cell[0] !== '//>' && (i < rowContents.length)) {
         // for Content integrity
         operationBody.Content += (!operationBody.Content.length ? '' : '\n') + rowContents[i]
         cell = rowContents[++i].split(' ')
@@ -558,11 +574,11 @@ class CppCodeGenerator {
       }
     }
     // write an operation identifier
-    customCode += '\n//begin ' + elem._id + '\n'
+    customCode += '\n//< ' + elem._id + '\n'
 
     customCode += _contents.length > 0 ? _contents : defaultContent
 
-    customCode += '\n//end ' + elem._id
+    customCode += '\n//>'
 
     return customCode
   }
@@ -614,17 +630,22 @@ class CppCodeGenerator {
       for (i = 0; i < cppCodeGen.toIncluded.length; i++) {
         var target = cppCodeGen.toIncluded[i]
 
-        if (target === elem) {
+        if (target === elem || associationComp.includes(target)) {
           continue
         }
-        
-        headerString += '#include "' + cppCodeGen.trackingHeader(elem, target) + '.h"\n'
+        if (target instanceof type.UMLPrimitiveType) {
+          // nothing to generate because the UMLPrimitiveType is taken for an element of the system
+          headerString += '#include <' + target.name + '>\n'
+        } else {
+          headerString += '#include "' + cppCodeGen.trackingHeader(elem, target) + '.h"\n'
+        }
+
         associationComp.push(target)
       }
 
       for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
         var target = cppCodeGen.toDeclared[i]
-        if (target === elem) {
+        if (target === elem || associationComp.includes(target)) {
           continue
         }
         associationComp.push(target)
@@ -639,8 +660,7 @@ class CppCodeGenerator {
       if (dependencies.length > 0) {
         for (i = 0; i < dependencies.length; i++) {
           var target = dependencies[i]
-          if (associationComp.includes(target) ||
-              !(target instanceof type.UMLClassifier)) {
+          if (associationComp.includes(target) || !(target instanceof type.UMLClassifier)) {
             continue
           }
           dependenciesString += '#include "' + cppCodeGen.trackingHeader(elem, target) + '.h"\n'
@@ -697,7 +717,7 @@ class CppCodeGenerator {
     }
     
     if (this.needComment) {
-      codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//begin op._id" AND "//end op._id"')
+      codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//< op._id" AND "//>"')
       codeWriter.writeLine('// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION')
       codeWriter.writeLine()
     }
@@ -739,7 +759,7 @@ class CppCodeGenerator {
     codeWriter.writeLine()
 
     if (this.needComment) {
-        codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//begin op._id" AND "//end op._id"')
+        codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//< op._id" AND "//>"')
         codeWriter.writeLine('// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION')
         codeWriter.writeLine()
     }
@@ -1108,7 +1128,7 @@ class CppCodeGenerator {
         
         if (returnTypeParam.length > 0) {
           validReturnParam = returnTypeParam[0]
-          returnType = this.getType(validReturnParam)
+          returnType += this.getType(validReturnParam)
           
           var _multiplicity = validReturnParam.multiplicity
           
@@ -1116,8 +1136,13 @@ class CppCodeGenerator {
           if (_multiplicity.length > 0) {
             if (['0..*', '1..*', '*'].includes(_multiplicity.trim())) {
               if (this.genOptions.useVector) {
-                returnType = 'std::vector<' + returnType + '>'
-                this.parseUnrecognizedType('vector')
+                if (this.genOptions.useQt) {
+                  returnType = 'QVector<' + returnType + '>'
+                  this.parseUnrecognizedType('QVector')
+                } else {
+                  returnType = 'std::vector<' + returnType + '>'
+                  this.parseUnrecognizedType('vector')
+                }
               } else {
                 returnType += '*'
               }
@@ -1164,9 +1189,11 @@ class CppCodeGenerator {
             } else {
               if (returnType === 'boolean' || returnType === 'bool') {
                 defaultContent += indentLine + 'return false;'
-              } else if (returnType === 'int' || returnType === 'long' || returnType === 'short' || returnType === 'byte') {
+              } else if (returnType === 'int' || returnType === 'long' || returnType === 'short' || returnType === 'byte' ||
+                         returnType === 'unsigned int' || returnType === 'unsigned long' || returnType === 'unsigned short' || returnType === 'unsigned byte') {
                 defaultContent += indentLine + 'return 0;'
-              } else if (returnType === 'double' || returnType === 'float') {
+              } else if (returnType === 'double' || returnType === 'float' ||
+                         returnType === 'unsigned double' || returnType === 'unsigned float') {
                 defaultContent += indentLine + 'return 0.0;'
               } else if (returnType === 'char') {
                 defaultContent += indentLine + 'return \'0\';'
@@ -1175,7 +1202,7 @@ class CppCodeGenerator {
               } else if (returnType === 'void') {
                 defaultContent += indentLine + 'return;'
               } else {
-                defaultContent += indentLine + 'return null;'
+                defaultContent += indentLine + 'return ' + returnType + '();'
               }
             }
           }
@@ -1448,8 +1475,13 @@ class CppCodeGenerator {
     if (elem.multiplicity) {
       if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
         if (this.genOptions.useVector) {
-          vType = 'std::vector<' + vType + '>'
-          this.parseUnrecognizedType('vector')
+          if (this.genOptions.useQt) {
+            vType = 'QVector<' + vType + '>'
+            this.parseUnrecognizedType('QVector')
+          } else {
+            vType = 'std::vector<' + vType + '>'
+            this.parseUnrecognizedType('vector')
+          }
         } else {
           vType += '*'
         }
