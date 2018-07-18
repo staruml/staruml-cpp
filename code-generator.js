@@ -89,15 +89,15 @@ function isGreatUMLPackage(elem) {
 }
 
 /**
- * Object for each modified operation
+ * Object to store any content refer to a key
  */
-class OperationBody {
+class KeyContent {
   /**
    * @constructor
    */
   constructor() {
     /** @member {string} Operation._id */
-    this.Id = ''
+    this.Key = ''
     /** @member {string} Operation._content */
     this.Content = ''
   }
@@ -111,16 +111,24 @@ class CppCodeGenerator {
    * @constructor
    *
    * @param {type.UMLPackage} baseModel
-   * @param {string} basePath generated files and directories to be placed
+   * @param {string} logPath StarUML log file path
    *
    */
-  constructor (baseModel, basePath) {
+  constructor (baseModel, logPath) {
     /** @member {type.Model} */
     this.baseModel = baseModel
 
-    /** @member {string} */
-    this.basePath = basePath
+    /** @member {String} */
+    this.logPath = logPath
 
+    /** @member {Array.<KeyContent>} */
+    this.FilePathLogs = []
+    
+
+    if (this.getFilePathLogs(logPath)) {
+      fs.unlinkSync(logPath)
+    }
+  
     var doc = ''
     if (app.project.getProject().name && app.project.getProject().name.length > 0) {
       doc += '\nProject ' + app.project.getProject().name
@@ -132,6 +140,71 @@ class CppCodeGenerator {
       doc += '\n@version ' + app.project.getProject().version
     }
     copyrightHeader = this.getDocuments(doc)
+  }
+
+  /**
+   * Get an array of path on the last generation
+   * 
+   * @param {String} logPath 
+   * @return {Boolean} status
+   */
+  getFilePathLogs (logPath) {
+    var data
+    try {
+      fs.accessSync(logPath, fs.constants.F_OK | fs.constants.R_OK)
+      data = fs.readFileSync(logPath, 'utf8')
+    } catch (err) {
+      app.toast.error('Project file config : ' + err)
+      data = ''
+    }
+
+    if (!data.length) {
+      return false
+    }
+
+    // transform this data to row array
+    var rows = data.split('\n')
+    var cell = []
+
+    for (var i = 0; i < rows.length; i++) {
+      // continue if no information
+      if (rows[i].length === 0) {
+        continue
+      }
+      cell = rows[i].split(' ==> ')
+      // catch the begin index
+      if (cell.length !== 2) {
+        continue
+      }
+      var filePath = new KeyContent()
+
+      filePath.Key = cell[0]
+      filePath.Content = cell[1]
+      
+      this.FilePathLogs.push(filePath)
+    }
+
+    return true
+  }
+
+  /**
+   * Get the elem file path
+   * 
+   * @param {type.UMLModelElement} elem 
+   * @return {String} file path within extension
+   */
+  getElemFilePath (elem) {
+    if (this.FilePathLogs.length > 0) {
+      for (var i = 0; i < this.FilePathLogs.length; i++) {
+        var keyContent = this.FilePathLogs[i]
+
+        if (keyContent.Key === elem._id) {
+          return keyContent.Content
+        }
+      }
+    }
+
+    return null
   }
 
   /**
@@ -405,7 +478,7 @@ class CppCodeGenerator {
       return false
     }
 
-    var fullPath, file
+    var fullPath, file, oldFile
 
     // Package -> as namespace or not
     if (elem instanceof type.UMLPackage) {
@@ -423,39 +496,61 @@ class CppCodeGenerator {
     } else if (elem instanceof type.UMLPrimitiveType) {
       // nothing to generate because the UMLPrimitiveType is taken for an element of the system
     } else {
-      // get the default file (path) of each element
+      // get the old file (path) of each element
+      oldFile = this.getElemFilePath(elem)
+      if (oldFile !== null) {
+        oldFile += '.' + _CPP_CODE_GEN_H
+        try {
+          fs.accessSync(oldFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+          this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
+          this.needComment = false
+          fs.unlinkSync(oldFile)
+        } catch (err) {
+          app.toast.error(err)
+        }
+      }
+
+      // for writing file
       file = getFilePath(_CPP_CODE_GEN_H)
-      try {
-        fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK)
-        this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
-        this.needComment = false
-      } catch (err) {}
+      var data = elem._id + ' ==> ' + basePath + '/' + elem.name + '\n'
 
       if (elem instanceof type.UMLClass) {
         this.haveSR = SRState(elem) // Signal and/or Reception found in the class elem
     
         // generate class header elem_name.h
         fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.appendFileSync(this.logPath, data, 'utf8')
         
         if (options.genCpp) {
+          oldFile = this.getElemFilePath(elem)
+          if (oldFile !== null) {
+            oldFile += '.' + _CPP_CODE_GEN_CPP
+            try {
+              fs.accessSync(oldFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+              this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
+              this.needComment = false
+              fs.unlinkSync(oldFile)
+            } catch (err) {
+              app.toast.error(err)
+            }
+          }
+    
           // generate class cpp elem_name.cpp
           file = getFilePath(_CPP_CODE_GEN_CPP)
-          try {
-            fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK)
-            this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
-          } catch (err) {}
-    
           fs.writeFileSync(file, this.writeBodySkeletonCode(elem, options, writeClassBody))
         }
       } else if (elem instanceof type.UMLInterface) {
+        this.haveSR = SRState(elem) // Signal and/or Reception found in the class elem
         /*
         * interface will convert to class which only contains virtual method and member variable.
         */
         // generate interface header ONLY elem_name.h
         fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.appendFileSync(this.logPath, data, 'utf8')
       } else if (elem instanceof type.UMLEnumeration) {
         // generate enumeration header ONLY elem_name.h
         fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration))
+        fs.appendFileSync(this.logPath, data, 'utf8')
       // } else if (elem instanceof type.UMLSignal) {
       //   // generate signal header ONLY elem_name.h
       //   fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeSignal))
@@ -513,14 +608,14 @@ class CppCodeGenerator {
   /**
    * Save all operation's body already implemented by the Developper
    * 
-   * @param {string} data : the cpp file content
+   * @param {string} data : the file content
    * @return {Array.<Object>}
    */
   getAllCustomOpImpl (data) {
     var operationBodies = []
 
     if (!data.length) {
-        return operationBodies
+      return operationBodies
     }
     // transform this data to row array
     var rowContents = data.split('\n')
@@ -537,9 +632,9 @@ class CppCodeGenerator {
       if (cell.length < 2 || cell[0] !== '//<') {
         continue
       }
-      var operationBody = new OperationBody()
+      var operationBody = new KeyContent()
 
-      operationBody.Id = cell[1]
+      operationBody.Key = cell[1]
       
       cell = rowContents[++i].split(' ')
 
@@ -567,7 +662,7 @@ class CppCodeGenerator {
     // get the content of an identified operation
     if (this.opImplSaved.length > 0) {
       for (var i = 0; i < this.opImplSaved.length; i++) {
-        if (elem._id === this.opImplSaved[i].Id) {
+        if (elem._id === this.opImplSaved[i].Key) {
           _contents = this.opImplSaved[i].Content
           break
         }
@@ -1537,8 +1632,13 @@ class CppCodeGenerator {
   }
 }
 
-function generate (baseModel, basePath, options) {
-  var cppCodeGenerator = new CppCodeGenerator(baseModel, basePath)
+function generate (baseModel, basePath, logPath, options) {
+  if (!logPath || !logPath.length) {
+    logPath = basePath + '/' + baseModel.name + '.slf'
+    app.toast.info('Generate project config in : ' + logPath)
+  }
+
+  var cppCodeGenerator = new CppCodeGenerator(baseModel, logPath)
   cppCodeGenerator.generate(baseModel, basePath, options)
 }
 

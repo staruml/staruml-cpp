@@ -54,6 +54,7 @@ function getRevOptions () {
  * @param {Object} options
  */
 function _handleGenerate (base, path, options) {
+  var logPath = ''
   // If options is not passed, get from preference
   options = options || getGenOptions()
   // If base is not assigned, popup ElementPicker
@@ -61,28 +62,31 @@ function _handleGenerate (base, path, options) {
     app.elementPickerDialog.showDialog('Select a base model to generate codes', null, type.UMLPackage).then(function ({buttonId, returnValue}) {
       if (buttonId === 'ok') {
         base = returnValue
+
+        logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
         // If path is not assigned, popup Open Dialog to select a folder
         if (!path) {
           var files = app.dialogs.showOpenDialog('Select a folder where generated codes to be located', null, null, { properties: [ 'openDirectory' ] })
           if (files && files.length > 0) {
             path = files[0]
-            codeGenerator.generate(base, path, options)
+            codeGenerator.generate(base, path, logPath, options)
           }
         } else {
-          codeGenerator.generate(base, path, options)
+          codeGenerator.generate(base, path, logPath, options)
         }
       }
     })
   } else {
+    logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
     // If path is not assigned, popup Open Dialog to select a folder
     if (!path) {
       var files = app.dialogs.showOpenDialog('Select a folder where generated codes to be located', null, null, { properties: [ 'openDirectory' ] })
       if (files && files.length > 0) {
         path = files[0]
-        codeGenerator.generate(base, path, options)
+        codeGenerator.generate(base, path, logPath, options)
       }
     } else {
-      codeGenerator.generate(base, path, options)
+      codeGenerator.generate(base, path, logPath, options)
     }
   }
 }
