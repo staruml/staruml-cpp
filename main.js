@@ -25,6 +25,11 @@ const fs = require('fs')
 const codeGenerator = require('./code-generator')
 const codeAnalyzer = require('./code-analyzer')
 
+var logPath = ''
+var path = ''
+var lastBase
+
+
 function getGenOptions () {
   return {
     useTab: app.preferences.get('cpp.gen.useTab'),
@@ -53,8 +58,7 @@ function getRevOptions () {
  * @param {string} path
  * @param {Object} options
  */
-function _handleGenerate (base, path, options) {
-  var logPath = ''
+function _handleGenerate (base, options) {
   // If options is not passed, get from preference
   options = options || getGenOptions()
   // If base is not assigned, popup ElementPicker
@@ -63,7 +67,15 @@ function _handleGenerate (base, path, options) {
       if (buttonId === 'ok') {
         base = returnValue
 
-        logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
+        if (!lastBase || lastBase !== base) {
+			lastBase = base
+			logPath = ''
+			path = ''
+		}
+        
+        if (!logPath) {
+			logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
+		}
         // If path is not assigned, popup Open Dialog to select a folder
         if (!path) {
           var files = app.dialogs.showOpenDialog('Select a folder where generated codes to be located', null, null, { properties: [ 'openDirectory' ] })
@@ -77,7 +89,15 @@ function _handleGenerate (base, path, options) {
       }
     })
   } else {
-    logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
+	if (!lastBase || lastBase !== base) {
+		lastBase = base
+		logPath = ''
+		path = ''
+	}
+	
+	if (!logPath) {
+		logPath = app.dialogs.showSaveDialog('Select a StarUML log file', null, null)
+	}
     // If path is not assigned, popup Open Dialog to select a folder
     if (!path) {
       var files = app.dialogs.showOpenDialog('Select a folder where generated codes to be located', null, null, { properties: [ 'openDirectory' ] })
