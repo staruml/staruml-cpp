@@ -226,6 +226,7 @@ class CppCodeGenerator {
   }
 
   generate (elem, basePath, options) {
+    this.elemToGenerate = elem
     this.genOptions = options
     this.haveSR = false // Signal and/or Reception found in the class elem
     this.opImplSaved = [] // Custom operations by Developper
@@ -317,6 +318,7 @@ class CppCodeGenerator {
           var generalization = genList[i]
           // public AAA, private BBB
           term.push(generalization.visibility + ' ' + generalization.target.name)
+          cppCodeGen.parseElemType(generalization.target, false)
         }
 
         if (!term.length) {
@@ -571,13 +573,14 @@ class CppCodeGenerator {
     }
 
     // if already exist
-    if ((this.toDeclared.includes(elemType) && toDeclared) || this.toIncluded.includes(elemType)) {
+    if ((toDeclared && this.toDeclared.includes(elemType)) || this.toIncluded.includes(elemType) || elemType === this.elemToGenerate) {
         return
     }
 
     // remove the elem in toDeclared if the new value is toIncluded
     if (this.toDeclared.includes(elemType) && !toDeclared) {
-        for (var i = 0; i < this.toDeclared.length; i++) {
+      var i
+        for (i = 0; i < this.toDeclared.length; i++) {
             if (this.toDeclared[i] === elemType) {
                 break
             }
@@ -694,31 +697,11 @@ class CppCodeGenerator {
       var memberString = ''
       var dependenciesString = ''
 
-      for (i = 0; i < cppCodeGen.notRecType.length; i++) {
-        headerString += '#include <' + cppCodeGen.notRecType[i] + '>\n'
-      }
-
-      var realizations = app.repository.getRelationshipsOf(elem, function (rel) {
-        return (rel instanceof type.UMLInterfaceRealization || rel instanceof type.UMLGeneralization)
-      })
-
       // for comparaison
       var associationComp = []
 
-      // check for interface or class
-      for (i = 0; i < realizations.length; i++) {
-        var realize = realizations[i]
-        if (realize.target === elem) {
-          continue
-        }
-        if (realize.target instanceof type.UMLPrimitiveType) {
-          // nothing to generate because the UMLPrimitiveType is taken for an element of the system
-          headerString += '#include <' + realize.target.name + '>\n'
-        } else {
-          headerString += '#include "' + cppCodeGen.trackingHeader(elem, realize.target) + '.h"\n'
-        }
-
-        associationComp.push(realize.target)
+      for (i = 0; i < cppCodeGen.notRecType.length; i++) {
+        headerString += '#include <' + cppCodeGen.notRecType[i] + '>\n'
       }
 
       // begin check for association member variable
@@ -849,7 +832,12 @@ class CppCodeGenerator {
       if (target === elem) {
           continue
       }
-      codeWriter.writeLine('#include "' + this.trackingHeader(elem, target) + '.h"')
+      if (target instanceof type.UMLPrimitiveType) {
+        // nothing to generate because the UMLPrimitiveType is taken for an element of the system
+        codeWriter.writeLine('#include <' + target.name + '>')
+      } else {
+        codeWriter.writeLine('#include "' + this.trackingHeader(elem, target) + '.h"')
+      }
     }
     codeWriter.writeLine()
 
@@ -974,29 +962,31 @@ class CppCodeGenerator {
   writeClassesDeclarations () {
     var codeWriter = new codegen.CodeWriter(this.getIndentString(this.genOptions))
 
-    var getAnchestor = (elem) => {
-      var anchestor = []
+    var getAnchestors = (elem) => {
+      var anchestorList = []
       var parentElem = elem._parent
 
       while (parentElem) {
         if (isGreatUMLPackage(parentElem)) {
-          anchestor.push(parentElem)
+          anchestorList.push(parentElem)
         }
         parentElem = parentElem._parent
       }
 
-      if (anchestor.length > 1) {
-        anchestor.reverse()
-      } else if (!anchestor.length) {
-        anchestor.push(elem)
+      if (anchestorList.length > 1) {
+        anchestorList.reverse()
       }
       
-      return anchestor
+      return anchestorList
     }
 
     var isUseful = (elem, elemTab) => {
       for (var i = 0; i < elemTab.length; i++) {
-        var anchestors = getAnchestor(elemTab[i])
+        var anchestors = getAnchestors(elemTab[i])
+
+        if (!anchestors.length) {
+          continue
+        }
         
         if (anchestors.includes(elem)) {
           return true
@@ -1006,32 +996,37 @@ class CppCodeGenerator {
       return false
     }
 
-    var writeClassDeclaration = (elem, codeWriter, elemTab) => {
-      if ((elem instanceof type.UMLClass) && elemTab.includes(elem)) {
+    var writeDeclaration = (elem, codeWriter, elemTab) => {
+      if ((elem instanceof type.UMLClass || elem instanceof type.UMLPrimitiveType || elem instanceof type.UMLInterface) && elemTab.includes(elem)) {
         codeWriter.writeLine('class ' + elem.name + ';')
+      } else if ((elem instanceof type.UMLDataType) && elemTab.includes(elem)) {
+        codeWriter.writeLine('struct ' + elem.name + ';')
       } else if (isUseful(elem, elemTab)) {
         codeWriter.writeLine('namespace ' + elem.name + ' {')
         var ownElems = elem.ownedElements
         for (var i = 0; i < ownElems.length; i++) {
-          writeClassDeclaration(ownElems[i], codeWriter, elemTab)
+          writeDeclaration(ownElems[i], codeWriter, elemTab)
         }
         codeWriter.writeLine('} // end of namespace ' + elem.name)
       }
     }
 
     var elemTab = this.toDeclared
-    var anchestors = []
+    var originAnchestorList = []
+    var noAnchestorList = []
 
     // get all common anchestor
     for (var i = 0; i < elemTab.length; i++) {
-      var anchestor = getAnchestor(elemTab[i])[0]
-      
-      if (anchestors.length) {
-        if (anchestors.includes(anchestor)) {
-          continue
-        }
+      if (elemTab[i] instanceof type.UMLPrimitiveType || !getAnchestors(elemTab[i]).length) {
+        noAnchestorList.push(elemTab[i])
+        continue
       }
-      anchestors.push(anchestor)
+      var origin = getAnchestors(elemTab[i])[0]
+      
+      if (originAnchestorList.length && originAnchestorList.includes(origin)) {
+          continue
+      }
+      originAnchestorList.push(origin)
     }
 
     // for the beauty of code
@@ -1039,9 +1034,14 @@ class CppCodeGenerator {
         codeWriter.writeLine()
     }
 
-    // // locate the class in each subAnchestor of each achestor
-    for (i = 0; i < anchestors.length; i++) {
-      writeClassDeclaration(anchestors[i], codeWriter, elemTab)
+    // write each class doesn't have anchestor first
+    for (i = 0; i < noAnchestorList.length; i++) {
+      writeDeclaration(noAnchestorList[i], codeWriter, elemTab)
+    }
+
+    // locate the class in each subAnchestor of each achestor
+    for (i = 0; i < originAnchestorList.length; i++) {
+      writeDeclaration(originAnchestorList[i], codeWriter, elemTab)
     }
 
     // for the beauty of code
@@ -1100,6 +1100,10 @@ class CppCodeGenerator {
   }
 
   trackingHeader (elem, target) {
+    if (target instanceof type.UMLPrimitiveType) {
+      return target.name
+    }
+
     var header = ''
     var elementString = ''
     var targetString = ''
@@ -1223,28 +1227,8 @@ class CppCodeGenerator {
         
         if (returnTypeParam.length > 0) {
           validReturnParam = returnTypeParam[0]
-          returnType += this.getType(validReturnParam)
+          returnType += this.getType(validReturnParam, true)
           
-          var _multiplicity = validReturnParam.multiplicity
-          
-          // multiplicity
-          if (_multiplicity.length > 0) {
-            if (['0..*', '1..*', '*'].includes(_multiplicity.trim())) {
-              if (this.genOptions.useVector) {
-                if (this.genOptions.useQt) {
-                  returnType = 'QVector<' + returnType + '>'
-                  this.parseUnrecognizedType('QVector')
-                } else {
-                  returnType = 'std::vector<' + returnType + '>'
-                  this.parseUnrecognizedType('vector')
-                }
-              } else {
-                returnType += '*'
-              }
-            } else if (_multiplicity !== '1') {
-              returnType += '*'
-            }
-          }
           docs += '\n@return ' + returnType + (validReturnParam.documentation.length ? ' : ' + validReturnParam.documentation : '')
         } else {
           returnType = 'void'
@@ -1478,21 +1462,30 @@ class CppCodeGenerator {
    * parsing type from element
    *
    * @param {Object} elem
+   * @param {boolean} isPrototype
    * @return {Object} string
    */
-  getType (elem) {
-    var _type = 'void'
+  getType (elem, isPrototype = false) {
+    var _elemType
+    var _typeStr = 'void'
     var _toDecl = false
+    var _isRecognizedType = true
+
+    var getCorrectType = (_elemType) => {
+      var _typeStr = this.getContainersSpecifierStr(_elemType, false) + _elemType.name
+      if (this.getTemplateParameter(_elemType).length > 0) {
+        _typeStr += this.getTemplateParameterNames(_elemType)
+      }
+      return _typeStr
+    }
 
     if (elem instanceof type.UMLAssociationEnd) { // member variable from association
-      if (elem.reference instanceof type.UMLModelElement && elem.reference.name.length > 0) {
-        _type = this.getContainersSpecifierStr(elem.reference, false) + elem.reference.name
-
-        if (this.getTemplateParameter(elem.reference).length > 0) {
-          _type += this.getTemplateParameterNames(elem.reference)
-        }
+      _elemType = elem.reference
         
-        var associations = app.repository.getRelationshipsOf(elem.reference, function (rel) {
+      if (_elemType instanceof type.UMLModelElement && _elemType.name.length > 0) {
+        _typeStr = getCorrectType(_elemType)
+
+        var associations = app.repository.getRelationshipsOf(_elemType, function (rel) {
           return (rel instanceof type.UMLAssociation)
         })
 
@@ -1511,37 +1504,79 @@ class CppCodeGenerator {
         }
 
         if (oppositeElem.aggregation !== type.UMLAttribute.AK_COMPOSITE) {
-          _type += '*'
+          _typeStr += '*'
           _toDecl = true
         }
-        this.parseElemType(elem.reference, _toDecl)
+      }
+    } else if (elem instanceof type.UMLParameter) { // parameter inside method
+      _elemType = elem.type
+
+      if (_elemType instanceof type.UMLModelElement && _elemType.name.length > 0) {
+        _typeStr = getCorrectType(_elemType)
+      } else if ((typeof _elemType === 'string') && _elemType.length > 0) {
+        _typeStr = _elemType
+        _isRecognizedType = false
+      }
+
+      if (elem.direction === type.UMLParameter.DK_INOUT) {
+        _typeStr += '*'
+        _toDecl = true
       }
     } else { // member variable inside class
-      var isShared = (elem.aggregation === type.UMLAttribute.AK_SHARED)
+      _elemType = elem.type
 
-      if (elem.type instanceof type.UMLModelElement && elem.type.name.length > 0) {
-        _type = this.getContainersSpecifierStr(elem.type, false) + elem.type.name
-
-        if (this.getTemplateParameter(elem.type).length > 0) {
-          _type += this.getTemplateParameterNames(elem.type)
-        }
-        
-        if (isShared) {
-          _toDecl = true
-        }
-        this.parseElemType(elem.type, _toDecl)
-
-      } else if ((typeof elem.type === 'string') && elem.type.length > 0) {
-        _type = elem.type
-        this.parseUnrecognizedType(_type)
+      if (_elemType instanceof type.UMLModelElement && _elemType.name.length > 0) {
+        _typeStr = getCorrectType(_elemType)
+      } else if ((typeof _elemType === 'string') && _elemType.length > 0) {
+        _typeStr = _elemType
+        _isRecognizedType = false
       }
 
-      if (isShared) {
-        _type += '*'
+      if (elem.aggregation === type.UMLAttribute.AK_SHARED) {
+        _typeStr += '*'
+        _toDecl = true
       }
     }
 
-    return _type
+    // multiplicity
+    if (elem.multiplicity) {
+      if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
+        if (this.genOptions.useVector) {
+          if (this.genOptions.useQt) {
+            _typeStr = 'QVector<' + _typeStr + '>'
+            this.parseUnrecognizedType('QVector')
+          } else {
+            _typeStr = 'std::vector<' + _typeStr + '>'
+            this.parseUnrecognizedType('vector')
+          }
+        } else {
+          _typeStr += '*'
+        }
+      } else if (elem.multiplicity === '0..1') {
+        _typeStr += '*'
+        _toDecl = true
+      } else if (elem.multiplicity !== '1') {
+        if (isPrototype) {
+          _typeStr += '*'
+          _toDecl = true
+        }
+      }
+    }
+
+    if (_isRecognizedType) {
+      this.parseElemType(_elemType, _toDecl)
+    } else {
+      this.parseUnrecognizedType(_elemType)
+    }
+
+    // modifiers
+    var vModifiers = this.getModifiers(elem)
+
+    if (vModifiers.length > 0) {
+      _typeStr = vModifiers.join(' ') + ' ' + _typeStr
+    }
+
+    return _typeStr
   }
 
   /**
@@ -1552,70 +1587,40 @@ class CppCodeGenerator {
    * @return {Object} string
    */
   getVariableDeclaration (elem, isCppBody) {
-    var vDeclaration = []
-
-    // modifiers
-    var vModifiers = this.getModifiers(elem)
-    if (vModifiers.length > 0) {
-        vDeclaration.push(vModifiers.join(' '))
-    }
+    var _declarationStr = []
 
     // type
-    var vType = this.getType(elem)
+    var _typeStr = this.getType(elem)
 
     // name
-    var vName = elem.name
+    var _nameStr = elem.name
 
-    // multiplicity
-    if (elem.multiplicity) {
-      if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
-        if (this.genOptions.useVector) {
-          if (this.genOptions.useQt) {
-            vType = 'QVector<' + vType + '>'
-            this.parseUnrecognizedType('QVector')
-          } else {
-            vType = 'std::vector<' + vType + '>'
-            this.parseUnrecognizedType('vector')
-          }
-        } else {
-          vType += '*'
-        }
-      } else if (elem.multiplicity === '0..1') {
-        vType += '*'
-      } else if (elem.multiplicity !== '1') {
-        if (elem.multiplicity.match(/^\d+$/)) { // number
-          vName += '[' + elem.multiplicity + ']'
-        } else {
-          vName += '[]'
-        }
+    if (elem.multiplicity && ['1', '0..1', '0..*', '1..*', '*'].includes(elem.multiplicity) === false) {
+      if (elem.multiplicity.match(/^\d+$/)) { // number
+        _nameStr += '[' + elem.multiplicity + ']'
+      } else {
+        _nameStr += '[]'
       }
     }
 
-    // modify the type if elem is an UMLParameter and direction is "inout" or "out"
-    if (elem instanceof type.UMLParameter) {
-      switch (elem.direction) {
-        case type.UMLParameter.DK_INOUT:
-          vName = '*' + vName
-          break
-        case type.UMLParameter.DK_OUT:
-          vName = '&' + vName
-          break
-      }
+    // modify the type if elem is an UMLParameter and direction is "out"
+    if (elem instanceof type.UMLParameter && elem.direction === type.UMLParameter.DK_OUT) {
+      _nameStr = '&' + _nameStr
     }    
 
-    // vType or vName can be modified by the multiplicity computation
-    vDeclaration.push(vType)
-    vDeclaration.push(vName)
+    // _typeStr or _nameStr can be modified by the multiplicity computation
+    _declarationStr.push(_typeStr)
+    _declarationStr.push(_nameStr)
 
     // if parameter with direction other than "return", Default value is not generated in body of the class
     if (!isCppBody || (elem instanceof type.UMLParameter && elem.direction === type.UMLParameter.DK_RETURN)) {
       // initial value
       if (elem.defaultValue && elem.defaultValue.length > 0) {
-        vDeclaration.push('= ' + elem.defaultValue)
+        _declarationStr.push('= ' + elem.defaultValue)
       }
     }
 
-    return vDeclaration.join(' ')
+    return _declarationStr.join(' ')
   }
 
   /**
