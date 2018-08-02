@@ -80,6 +80,18 @@ const _CPP_DEFAULT_TYPE = [
 ]
 
 /**
+ * Change first character to upper case
+ * 
+ * @param {string} name
+ */
+function firstUpperCase (name) {
+  if (name.length > 0) {
+    return name[0].toUpperCase() + name.substr(1, name.length - 1)
+  }
+  return ''
+}
+
+/**
  * verif if elem is a great package
  * @param {Object} elem 
  * @return {boolean}
@@ -285,6 +297,14 @@ class CppCodeGenerator {
       codeWriter.writeLine(docs + modifierStr + 'enum ' + elem.name + ' {\n' +
         idL  + elem.literals.map(lit => lit.name).join(',\n' + idL) +
         '\n};')
+      
+      if (cppCodeGen.genOptions.useQt) {
+        if (elem._parent instanceof type.UMLClass || elem._parent instanceof type.UMLInterface) {
+          codeWriter.writeLine('Q_ENUM(' + elem.name + ')')
+        } else {
+          codeWriter.writeLine('Q_DECLARE_METATYPE(' + cppCodeGen.getContainersSpecifierStr(elem) + elem.name + ')')
+        }
+      }
     }
 
     var writeClassHeader = (codeWriter, elem, cppCodeGen) => {
@@ -326,6 +346,42 @@ class CppCodeGenerator {
         }
 
         return  ': ' + term.join(', ')
+      }
+
+      var writeProperties = (codeWriter , elem, memberAttr, cppCodeGen) => {
+        var attrs = cppCodeGen.classifyVisibility(memberAttr)
+        var securedAttributes = attrs._protected.concat(attrs._private)
+
+        securedAttributes.forEach((attr) => {
+          // for variable
+          var variableStr = cppCodeGen.getVariableDeclaration(attr, true)
+          // for member
+          var memberStr = ' MEMBER m_' + attr.name
+          // for getter & setter
+          var getterStr = '', getterFound = false
+          var setterStr = '', setterFound = false
+          var setterOp = 'set' + firstUpperCase(attr.name)
+          
+          for (var i = 0; i < elem.operations.length; i++) {
+            var op = elem.operations[i]
+            // find getter
+            if (op.name === attr.name && op.visibility === type.UMLModelElement.VK_PUBLIC) {
+              getterStr = ' READ ' + op.name
+              getterFound =true
+            }
+            // find setter
+            if (op.name === setterOp && op.visibility === type.UMLModelElement.VK_PUBLIC) {
+              setterStr = ' WRITE ' + op.name
+              setterFound = true
+            }
+            // all accessor found
+            if (getterFound && setterFound) {
+              break
+            }
+          }
+          // writing property
+          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (getterFound ? getterStr : memberStr) + setterStr + ')')
+        })
       }
 
       // member variable
@@ -372,10 +428,16 @@ class CppCodeGenerator {
       }
 
       codeWriter.writeLine('class ' + elem.name + finalModifier + writeInheritance(elem) + '\n{')
-      if (cppCodeGen.haveSR && cppCodeGen.genOptions.useQt) {
-          codeWriter.indent()
+      if (cppCodeGen.genOptions.useQt) {
+        codeWriter.indent()
+        if (cppCodeGen.haveSR) {
           codeWriter.writeLine('Q_OBJECT')
-          codeWriter.outdent()
+        } else {
+          codeWriter.writeLine('Q_GADGET')
+        }
+        writeProperties(codeWriter, elem, memberAttr, cppCodeGen)
+
+        codeWriter.outdent()
       }
       if (classfiedAttributes._public.length > 0) {
         codeWriter.writeLine('public: ')
@@ -498,6 +560,10 @@ class CppCodeGenerator {
     } else if (elem instanceof type.UMLPrimitiveType) {
       // nothing to generate because the UMLPrimitiveType is taken for an element of the system
     } else {
+      // for writing file
+      file = getFilePath(_CPP_CODE_GEN_H)
+      var data = elem._id + ' ==> ' + basePath + '/' + elem.name + '\n'
+
       // get the old file (path) of each element
       oldFile = this.getElemFilePath(elem)
       if (oldFile !== null) {
@@ -507,14 +573,15 @@ class CppCodeGenerator {
           this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
           this.needComment = false
           fs.unlinkSync(oldFile)
-        } catch (err) {
-          app.toast.error(err)
-        }
+        } catch (err) {}
+      } else {
+        try {
+          fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+          this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
+          this.needComment = false
+          fs.unlinkSync(file)
+        } catch (err) {}
       }
-
-      // for writing file
-      file = getFilePath(_CPP_CODE_GEN_H)
-      var data = elem._id + ' ==> ' + basePath + '/' + elem.name + '\n'
 
       if (elem instanceof type.UMLClass) {
         this.haveSR = SRState(elem) // Signal and/or Reception found in the class elem
@@ -524,6 +591,8 @@ class CppCodeGenerator {
         fs.appendFileSync(this.logPath, data, 'utf8')
         
         if (options.genCpp) {
+          file = getFilePath(_CPP_CODE_GEN_CPP)
+
           oldFile = this.getElemFilePath(elem)
           if (oldFile !== null) {
             oldFile += '.' + _CPP_CODE_GEN_CPP
@@ -532,13 +601,17 @@ class CppCodeGenerator {
               this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
               this.needComment = false
               fs.unlinkSync(oldFile)
-            } catch (err) {
-              app.toast.error(err)
-            }
+            } catch (err) {}
+          } else {
+            try {
+              fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+              this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
+              this.needComment = false
+              fs.unlinkSync(file)
+            } catch (err) {}
           }
     
           // generate class cpp elem_name.cpp
-          file = getFilePath(_CPP_CODE_GEN_CPP)
           fs.writeFileSync(file, this.writeBodySkeletonCode(elem, options, writeClassBody))
         }
       } else if (elem instanceof type.UMLInterface) {
@@ -697,6 +770,27 @@ class CppCodeGenerator {
       var memberString = ''
       var dependenciesString = ''
 
+      // incluce the QObject item if Qt framework is checked
+      if (cppCodeGen.genOptions.useQt) {
+        // find if QObject is already exist
+        var qobjectFound = false
+        for (i = 0; i < cppCodeGen.toIncluded.length; i++) {
+          if (cppCodeGen.toIncluded[i].name === 'QObject') {
+            qobjectFound = true
+            break
+          }
+        }
+        for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
+          if (cppCodeGen.toDeclared[i].name === 'QObject') {
+            cppCodeGen.toDeclared.splice(i)
+            break
+          }
+        }
+        if (!qobjectFound) {
+          cppCodeGen.parseUnrecognizedType('QObject')
+        }
+      }
+
       // for comparaison
       var associationComp = []
 
@@ -806,7 +900,7 @@ class CppCodeGenerator {
     codeWriter.writeLine(classDeclaration)
 
     codeWriter.writeLine()
-    codeWriter.writeLine('#endif //' + headerString)
+    codeWriter.writeLine('#endif // ' + headerString)
 
     return codeWriter.getData()
   }
@@ -917,7 +1011,7 @@ class CppCodeGenerator {
    * @param {Boolean} absolute
    * @return {String}
    */
-  getAnchestorClassSpecifierStr (elem, absolute) {
+  getAnchestorClassSpecifierStr (elem, absolute = false) {
     var getAnchestorsClassStr = (elem, cppCodeGen) => {
       var t_elem = elem._parent
       var specifiers = []
@@ -949,7 +1043,7 @@ class CppCodeGenerator {
    * @param {Boolean} absolute
    * @return {String}
    */
-  getContainersSpecifierStr (elem, absolute) {
+  getContainersSpecifierStr (elem, absolute = false) {
     var classStr = this.getAnchestorClassSpecifierStr(elem, absolute)
     var namespacesStr = this.getNamespacesSpecifierStr(elem, (classStr.length || !absolute ? false : true))
 
@@ -1180,7 +1274,7 @@ class CppCodeGenerator {
     if (!elem.name.length) {
       return ''
     }
-    var terms = this.getVariableDeclaration(elem, false)
+    var terms = this.getVariableDeclaration(elem, false, true)
 
     return terms + ';' + (elem.documentation.length ? ' /* ' + elem.documentation + ' */' : '')
   }
@@ -1330,7 +1424,7 @@ class CppCodeGenerator {
    */
   getSlot (elem, isCppBody) {
     if (elem.name.length > 0) {
-      var docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name)
+      var docs = ''
       var i
       var methodStr = ''
       var paramStr = ''
@@ -1354,8 +1448,11 @@ class CppCodeGenerator {
         
         var specifier = this.getContainersSpecifierStr(elemSignal, false)
 
+        // sync reception name to the signal
+        elem.name = 'on' + firstUpperCase(elemSignal.name)
         docs += '\nFrom signal: ' + specifier + elemSignal.name
       }
+      docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name) + docs
 
       // if generation of body code is setted
       if (isCppBody) {
@@ -1584,9 +1681,10 @@ class CppCodeGenerator {
    *
    * @param {Object} elem
    * @param {boolean} isCppBody
+   * @param {boolean} isMemberVariable
    * @return {Object} string
    */
-  getVariableDeclaration (elem, isCppBody) {
+  getVariableDeclaration (elem, isCppBody, isMemberVariable = false) {
     var _declarationStr = []
 
     // type
@@ -1594,6 +1692,9 @@ class CppCodeGenerator {
 
     // name
     var _nameStr = elem.name
+    if (isMemberVariable && elem.visibility !== type.UMLModelElement.VK_PUBLIC) {
+      _nameStr = 'm_' + _nameStr
+    }
 
     if (elem.multiplicity && ['1', '0..1', '0..*', '1..*', '*'].includes(elem.multiplicity) === false) {
       if (elem.multiplicity.match(/^\d+$/)) { // number
