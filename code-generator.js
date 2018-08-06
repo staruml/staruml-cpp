@@ -353,17 +353,20 @@ class CppCodeGenerator {
         var securedAttributes = attrs._protected.concat(attrs._private)
 
         securedAttributes.forEach((attr) => {
+          var i
+
           // for variable
-          var variableStr = cppCodeGen.getVariableDeclaration(attr, true)
+          const variableStr = cppCodeGen.getVariableDeclaration(attr, true)
+          
           // for member
-          var memberStr = ' MEMBER m_' + attr.name
+          const memberStr = ' MEMBER m_' + attr.name
+          
           // for getter & setter
           var getterStr = '', getterFound = false
           var setterStr = '', setterFound = false
-          var setterOp = 'set' + firstUpperCase(attr.name)
-          
-          for (var i = 0; i < elem.operations.length; i++) {
-            var op = elem.operations[i]
+          const setterOp = 'set' + firstUpperCase(attr.name)
+          for (i = 0; i < elem.operations.length; i++) {
+            const op = elem.operations[i]
             // find getter
             if (op.name === attr.name && op.visibility === type.UMLModelElement.VK_PUBLIC) {
               getterStr = ' READ ' + op.name
@@ -379,8 +382,19 @@ class CppCodeGenerator {
               break
             }
           }
+          
+          // for signal
+          var signalStr = ''
+          const signalRef = attr.name + 'Changed'
+          for (i = 0; i < elem.ownedElements.length; i++) {
+            const currentElem = elem.ownedElements[i]
+            if (currentElem instanceof type.UMLSignal && currentElem.name === signalRef) {
+              signalStr = ' NOTIFY ' + signalRef
+            }
+          }
+          
           // writing property
-          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (getterFound ? getterStr : memberStr) + setterStr + ')')
+          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (getterFound ? getterStr : memberStr) + setterStr + signalStr + ')')
         })
       }
 
@@ -674,9 +688,9 @@ class CppCodeGenerator {
         return
       }
       
-      if (this.haveSR && this.genOptions.useQt) {
-        return
-      }
+      // if (this.haveSR && this.genOptions.useQt) {
+      //   return
+      // }
 
       this.notRecType.push(typeName)
   }
@@ -1287,6 +1301,71 @@ class CppCodeGenerator {
    * @return {Object} string
    */
   getMethod (elem, isCppBody) {
+
+    var getConstraint = (elem, cppCodeGen) => {
+      let codeWriter = new codegen.CodeWriter(cppCodeGen.getIndentString(cppCodeGen.genOptions))
+
+      let specification = elem.specification
+      var preconditions = elem.preconditions
+      var bodyConditions = elem.bodyConditions
+      var postconditions = elem.postconditions
+      
+      // for specification
+      if (specification && specification.length > 0) {
+        codeWriter.writeLine('specification :')
+        codeWriter.indent()
+        codeWriter.writeLine(specification)
+        codeWriter.outdent()
+      }
+
+      // for preconditions
+      if (preconditions && preconditions.length > 0) {
+
+        preconditions.forEach((precondition) => {
+          app.toast.info('precondition name = ' + precondition.name)
+          specification = precondition.specification
+
+          if (specification && specification.length > 0) {
+            codeWriter.writeLine(precondition.name + ' <<precodition>> :')
+            codeWriter.indent()
+            codeWriter.writeLine(specification)
+            codeWriter.outdent()
+          }
+        })
+      }
+
+      // for bodyConditions
+      if (bodyConditions && bodyConditions.length > 0) {
+
+        bodyConditions.forEach((bodyCondition) => {
+          specification = bodyCondition.specification
+
+          if (specification && specification.length > 0) {
+            codeWriter.writeLine(bodyCondition.name + ' <<bodyCodition>> :')
+            codeWriter.indent()
+            codeWriter.writeLine(specification)
+            codeWriter.outdent()
+          }
+        })
+      }
+
+      // for postconditions
+      if (postconditions && postconditions.length > 0) {
+
+        postconditions.forEach((postcondition) => {
+          specification = postcondition.specification
+
+          if (specification && specification.length > 0) {
+            codeWriter.writeLine(postcondition.name + ' <<postcodition>> :')
+            codeWriter.indent()
+            codeWriter.writeLine(specification)
+            codeWriter.outdent()
+          }
+        })
+      }
+
+      return codeWriter.getData()
+    }
     // don't generate an abstract operation body
     if (isCppBody && elem.isAbstract) {
       return ''
@@ -1299,6 +1378,7 @@ class CppCodeGenerator {
       var returnType = ''
       var returnTypeParam
       var validReturnParam
+      var isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
     
       // constructor and destructor verification
       var isConstructor = elem.name === elem._parent.name // for constructor
@@ -1347,7 +1427,10 @@ class CppCodeGenerator {
         
         var indentLine = this.getIndentString(this.genOptions)
 
-        methodStr += this.getContainersSpecifierStr(elem, false)
+        if (!isFriend) {
+          methodStr += this.getContainersSpecifierStr(elem, false)
+        }
+
         methodStr += elem.name
         methodStr += '(' + inputParamStrings.join(', ') + ')'
 
@@ -1384,6 +1467,8 @@ class CppCodeGenerator {
 
         methodStr += this.writeCustomCode(elem, defaultContent)
 
+        // adding all constraint fo doc format
+        methodStr = this.getDocuments(getConstraint(elem, this)) + methodStr
       } else {
 
         methodStr += elem.name
@@ -1396,15 +1481,12 @@ class CppCodeGenerator {
           // set the elem and his parent in model to abstract (if not setted)
           elem._parent.isAbstract = true
           elem.isAbstract = true
-        } else if (elem.isStatic) {
-          methodStr = 'static ' + methodStr
-        } else if (elem.isLeaf) {
-          methodStr += ' final'
-        } else if (isConstructor) {
-          methodStr = 'explicit ' + methodStr
-        } else {
-          methodStr = 'virtual ' + methodStr
         }
+        else if (isFriend) { methodStr = 'friend ' + methodStr }
+        else if (elem.isStatic) { methodStr = 'static ' + methodStr }
+        else if (elem.isLeaf) { methodStr += ' final' }
+        else if (isConstructor) { methodStr = 'explicit ' + methodStr }
+        else { methodStr = 'virtual ' + methodStr }
         
         methodStr += ';'
     
