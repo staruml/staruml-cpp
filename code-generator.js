@@ -76,7 +76,25 @@ const _CPP_DEFAULT_TYPE = [
   'unsigned short',
   'unsigned short int',
   'unsigned long int',
-  'unsigned long long'
+  'unsigned long long',
+
+  // Qt typedef
+  'qint8',
+  'qint16',
+  'qint32',
+  'qint64',
+  'qintptr',
+  'qlonglong',
+
+  'quint8',
+  'quint16',
+  'quint32',
+  'quint64',
+  'quintptr',
+  'qulonglong',
+
+  'qreal',
+  'qptrdiff'
 ]
 
 /**
@@ -342,19 +360,41 @@ class CppCodeGenerator {
         }
 
         if (!term.length) {
+          // force QObject inheritance if Qt is used and have Signal & Reception
+          if (cppCodeGen.haveSR && cppCodeGen.genOptions.useQt) {
+            return ' : public QObject'
+          }
           return ''
         }
 
-        return  ': ' + term.join(', ')
+        return  ' : ' + term.join(', ')
       }
 
       var writeProperties = (codeWriter , elem, memberAttr, cppCodeGen) => {
+        var isSetterMethod = (currentOperation) => {
+          if (currentOperation.parameters.length > 2) {
+            return false
+          }
+
+          var innerParams = currentOperation.parameters.filter(function (params) {
+            return (params.direction === 'in' || params.direction === 'inout' || params.direction === 'out')
+          })
+
+          if (innerParams.length !== 1) {
+            return false
+          }
+
+          return true
+        }
+
         var attrs = cppCodeGen.classifyVisibility(memberAttr)
-        var securedAttributes = attrs._protected.concat(attrs._private)
+        // don't generate a static attribute
+        var securedAttributes = attrs._protected.concat(attrs._private).filter(function(attr) {
+          return !attr.isStatic
+        })
 
         securedAttributes.forEach((attr) => {
           var i
-
           // for variable
           const variableStr = cppCodeGen.getVariableDeclaration(attr, true)
           
@@ -362,23 +402,23 @@ class CppCodeGenerator {
           const memberStr = ' MEMBER m_' + attr.name
           
           // for getter & setter
-          var getterStr = '', getterFound = false
-          var setterStr = '', setterFound = false
+          var getterStr = '', hasGetter = false
+          var setterStr = '', hasSetter = false
           const setterOp = 'set' + firstUpperCase(attr.name)
           for (i = 0; i < elem.operations.length; i++) {
             const op = elem.operations[i]
             // find getter
-            if (op.name === attr.name && op.visibility === type.UMLModelElement.VK_PUBLIC) {
+            if (op.name === attr.name && op.visibility === type.UMLModelElement.VK_PUBLIC && op.parameters.length === 1) {
               getterStr = ' READ ' + op.name
-              getterFound =true
+              hasGetter =true
             }
             // find setter
-            if (op.name === setterOp && op.visibility === type.UMLModelElement.VK_PUBLIC) {
+            if (op.name === setterOp && op.visibility === type.UMLModelElement.VK_PUBLIC && isSetterMethod(op)) {
               setterStr = ' WRITE ' + op.name
-              setterFound = true
+              hasSetter = true
             }
             // all accessor found
-            if (getterFound && setterFound) {
+            if (hasGetter && hasSetter) {
               break
             }
           }
@@ -394,7 +434,7 @@ class CppCodeGenerator {
           }
           
           // writing property
-          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (getterFound ? getterStr : memberStr) + setterStr + signalStr + ')')
+          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (hasGetter ? getterStr : memberStr) + ((!elem.isReadOnly && hasSetter) ? (setterStr + signalStr) : '') + ')')
         })
       }
 
@@ -683,16 +723,15 @@ class CppCodeGenerator {
     }
   }
 
-  parseUnrecognizedType (typeName) {
-      if (_CPP_DEFAULT_TYPE.includes(typeName) || this.notRecType.includes(typeName)) {
-        return
-      }
-      
-      // if (this.haveSR && this.genOptions.useQt) {
-      //   return
-      // }
+  parseUnrecognizedType (typeExp) {
+    // if typeExp equal to an   type1<type2, type3>
+    var typeNames = typeExp.split('<')
 
-      this.notRecType.push(typeName)
+    var typeName = typeNames[0]
+    if (_CPP_DEFAULT_TYPE.includes(typeName) || this.notRecType.includes(typeName)) {
+      return
+    }
+    this.notRecType.push(typeName)
   }
 
   /**
@@ -816,7 +855,7 @@ class CppCodeGenerator {
       for (i = 0; i < cppCodeGen.toIncluded.length; i++) {
         var target = cppCodeGen.toIncluded[i]
 
-        if (target === elem || associationComp.includes(target)) {
+        if (target === elem || associationComp.includes(target) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
           continue
         }
         if (target instanceof type.UMLPrimitiveType) {
@@ -831,7 +870,8 @@ class CppCodeGenerator {
 
       for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
         var target = cppCodeGen.toDeclared[i]
-        if (target === elem || associationComp.includes(target)) {
+        
+        if (target === elem || associationComp.includes(target) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
           continue
         }
         associationComp.push(target)
@@ -846,10 +886,16 @@ class CppCodeGenerator {
       if (dependencies.length > 0) {
         for (i = 0; i < dependencies.length; i++) {
           var target = dependencies[i]
-          if (associationComp.includes(target) || !(target instanceof type.UMLClassifier)) {
+          if (associationComp.includes(target) || !(target instanceof type.UMLClassifier) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
             continue
           }
-          dependenciesString += '#include "' + cppCodeGen.trackingHeader(elem, target) + '.h"\n'
+          if (target instanceof type.UMLPrimitiveType) {
+            // nothing to generate because the UMLPrimitiveType is taken for an element of the system
+            headerString += '#include <' + target.name + '>\n'
+          } else {
+            dependenciesString += '#include "' + cppCodeGen.trackingHeader(elem, target) + '.h"\n'
+          }
+		  
           associationComp.push(target)
         }
       }
@@ -1010,7 +1056,7 @@ class CppCodeGenerator {
     var t_elem = elem._parent
     var specifiers = []
 
-    while (t_elem instanceof type.UMLClass) {
+    while (t_elem instanceof type.UMLClass || t_elem instanceof type.UMLInterface) {
       specifiers.push(t_elem)
       t_elem = t_elem._parent
     }
@@ -1366,7 +1412,8 @@ class CppCodeGenerator {
 
       return codeWriter.getData()
     }
-    // don't generate an abstract operation body
+   
+   // don't generate an abstract operation body
     if (isCppBody && elem.isAbstract) {
       return ''
     }
@@ -1378,7 +1425,8 @@ class CppCodeGenerator {
       var returnType = ''
       var returnTypeParam
       var validReturnParam
-      var isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
+      const isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
+	  const isReadOnly = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'readOnly')
     
       // constructor and destructor verification
       var isConstructor = elem.name === elem._parent.name // for constructor
@@ -1433,6 +1481,10 @@ class CppCodeGenerator {
 
         methodStr += elem.name
         methodStr += '(' + inputParamStrings.join(', ') + ')'
+		
+		if (isReadOnly) {
+			methodStr += ' const'
+		}
 
         var defaultContent = '{\n'
 
@@ -1473,6 +1525,7 @@ class CppCodeGenerator {
 
         methodStr += elem.name
         methodStr += '(' + inputParamStrings.join(', ') + ')'
+		if (isReadOnly) { methodStr += ' const' }
 
         // make pure virtual all operation of an UMLInterface
         if (elem._parent instanceof type.UMLInterface || elem.isAbstract) {
@@ -1487,7 +1540,7 @@ class CppCodeGenerator {
         else if (elem.isLeaf) { methodStr += ' final' }
         else if (isConstructor) { methodStr = 'explicit ' + methodStr }
         else { methodStr = 'virtual ' + methodStr }
-        
+		
         methodStr += ';'
     
         methodStr = '\n' + this.getDocuments(docs) + methodStr
