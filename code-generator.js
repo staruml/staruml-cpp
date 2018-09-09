@@ -232,7 +232,7 @@ class CppCodeGenerator {
       if (rows[i].length === 0) {
         continue
       }
-      cell = rows[i].split(' ==> ')
+      cell = rows[i].split(' => ')
       // catch the begin index
       if (cell.length !== 2) {
         continue
@@ -657,7 +657,7 @@ class CppCodeGenerator {
     } else {
       // for writing file
       file = getFilePath(_CPP_CODE_GEN_H)
-      var data = elem._id + ' ==> ' + basePath + /*if linux, use*/ '/' /* else, use '\\' */ + elem.name + '\n'
+      var data = elem._id + ' => ' + basePath + (this.genOptions.windows ? '\\' : '/') + elem.name + '\n'
 
       // get the old file (path) of each element
       oldFile = this.getElemFilePath(elem)

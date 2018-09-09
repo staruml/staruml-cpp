@@ -6,6 +6,12 @@
       "text": "C++ Code Generation",
       "type": "section"
     },
+    "cpp.gen.windows": {
+      "text": "Windows",
+      "description": "Check this if you are using windows",
+      "type": "check",
+      "default": false
+    },
     "cpp.gen.useTab": {
       "text": "Use Tab",
       "description": "Use Tab for indentation instead of spaces.",

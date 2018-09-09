@@ -10,6 +10,7 @@ var lastBase
 
 function getGenOptions () {
   return {
+    windows: app.preferences.get('cpp.gen.windows'),
     useTab: app.preferences.get('cpp.gen.useTab'),
     useQt: app.preferences.get('cpp.gen.useQt'),
     indentSpaces: app.preferences.get('cpp.gen.indentSpaces'),
