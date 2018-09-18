@@ -96,6 +96,19 @@ function isGreatUMLPackage(elem) {
 }
 
 /**
+ * get all super class / interface from element
+ *
+ * @param {Object} elem
+ * @return {Object} list
+ */
+function getSuperClasses (elem) {
+  var generalizations = app.repository.getRelationshipsOf(elem, function (rel) {
+    return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.source === elem)
+  })
+  return generalizations
+}
+
+/**
  * verif if elem has a Signal or Reception
  * @param {UMLClassifier} elem 
  */
@@ -117,6 +130,8 @@ function hasAsyncMethod(elem) {
 
 /**
  * return an elem if it is instance of association end
+ * @param {associationEnd} elem
+ * @return {associationEnd}
  */
 function getOppositeElem(elem) {  
   var associations = app.repository.getRelationshipsOf(elem.reference, function (rel) {
@@ -128,10 +143,8 @@ function getOppositeElem(elem) {
 
     if (asso.end1 === elem) {
       return asso.end2
-      break
     } else if (asso.end2 === elem) {
       return asso.end1
-      break
     }
   }
 
@@ -139,10 +152,274 @@ function getOppositeElem(elem) {
 }
 
 /**
- * return an aggregation value of elem if it is instance of association end
+ * Check if elem is a pointer attribute
+ * @param {Attribute} elem 
+ * @return {Boolean}
  */
-function getOppositeElemAggregation(elem) {
-  return getOppositeElem(elem).aggregation
+function likePointer (elem) {
+  // multiplicity '0..1' is used as pointer
+  if (elem.multiplicity === '0..1') {
+    return true
+  }
+
+  // opposite elem aggregation 'none' and 'shared' is used as pointer
+  if (elem instanceof type.UMLAssociationEnd) {
+    return getOppositeElem(elem).aggregation !== type.UMLAttribute.AK_COMPOSITE
+  }
+
+  // elem aggregation 'shared' is used as pointer
+  return elem.aggregation === type.UMLAttribute.AK_SHARED
+}
+
+/**
+ * Useful to improve the code
+ * @param {UMLClass} elem
+ * @param {Array<Attribute>} memberAttrs
+ * @param {Object} cppCodeGen
+ */
+function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
+  /**
+   * Check the custom constructor of the elem
+   * @param {Object} elem 
+   */
+  var parentHaveCustomConstructor = (elem) => {
+    var parents = getSuperClasses(elem)
+
+    for (var i = 0; i < parents.length; i++) {
+      const currentParent = parents[i].target
+
+      // find custom constructor
+      for (var j = 0; j < currentParent.operations.length; j++) {
+        const currentOp = currentParent.operations[j]
+    
+        // for public visibility
+        if (currentOp.visibility === type.UMLModelElement.VK_PRIVATE) {
+          continue
+        }
+    
+        if (currentOp.name === currentParent.name && // this is the constructor
+            currentOp.parameters.length > 0 && // not the default constructor
+            currentOp.parameters[0].type !== currentParent) { // not the copy constructor
+          return true // then, this is a custom constructor
+        }
+      }
+    }
+
+    return false
+  }
+
+  var i
+  var _constructor, _destructor
+  var _operator, _param
+  
+  var hasDefaultConstructor = false, hasCopyConstructor = false
+  var hasDestructor = false
+
+  var hasEqualOp = false, hasDiffOp = false
+  var hasAssignOp = false
+  
+  // parse member attributes
+  var hasDynamicAttr = false
+  var needConstructor = false
+
+  for (i = 0; i < memberAttrs.length; i++) {
+    currentAttr = memberAttrs[i]
+    // find dynamic attribute
+    if (likePointer(currentAttr)) {
+      hasDynamicAttr = true
+    }
+    // readOnly attribute must be setted in the constructor
+    if (currentAttr.isReadOnly) {
+      needConstructor = true
+    }
+  }
+
+  if (!needConstructor) {
+    needConstructor = parentHaveCustomConstructor(elem)
+  }
+  
+  // check existence of operation to generate
+  for (i = 0; i < elem.operations.length; i++) {
+    const currentOp = elem.operations[i]
+    const paramNb = currentOp.parameters.length
+
+    if (currentOp.name === elem.name) {
+      // for default constructor
+      if (!paramNb) {
+        hasDefaultConstructor = true
+      }
+      
+      else if (paramNb > 0) {
+        const firstParam = currentOp.parameters[0]
+        // for copy constructor
+        if (paramNb === 1 &&
+            firstParam.type === elem &&
+            firstParam.direction === type.UMLParameter.DK_OUT) {
+          hasCopyConstructor = true
+        }
+        // ignore default constructor if one constructor is defined with default value on first param
+        else if (firstParam.defaultValue.length > 0) {
+          needConstructor = false
+        }
+      }
+    }
+
+    // for destructor
+    else if (currentOp.name === ('~' + elem.name) && !currentOp.parameters.length) {
+      hasDestructor = true
+    }
+
+    // for comparison operators
+    // else if (currentOp.name === 'operator==') {
+		// 	hasEqualOp = true
+		// } else if (currentOp.name === 'operator!=') {
+		// 	hasDiffOp = true
+		// }
+
+    // for assignment operator
+    else if (currentOp.name === 'operator=' &&
+            currentOp.parameters.length >= 1 && currentOp.parameters[0].type === elem) {
+      hasAssignOp = true
+    }
+  }
+
+  // generating ...
+	var builder = app.repository.getOperationBuilder()
+	builder.begin('generate constructor & destructor')
+
+	if (!hasDefaultConstructor && needConstructor) {
+		_constructor = new type.UMLOperation()
+		_constructor.name = elem.name
+		_constructor.visibility = type.UMLModelElement.VK_PUBLIC
+		_constructor._parent = elem
+
+		builder.insert(_constructor)
+		builder.fieldInsert(elem, 'operations', _constructor)
+	}
+	
+  if (hasDynamicAttr) {
+    // don't generate copy constructor and assign operator in QObject child class
+    if (!(cppCodeGen.genOptions.useQt && cppCodeGen.haveSR)) {
+      if (!hasCopyConstructor) {
+        _constructor = new type.UMLOperation()
+        _constructor.name = elem.name
+        _constructor.visibility = type.UMLModelElement.VK_PUBLIC
+        _constructor._parent = elem
+        
+        _param = new type.UMLParameter()
+        _param.name = 'other'
+        _param.direction = type.UMLParameter.DK_OUT
+        _param.type = elem
+        _param.isReadOnly = true
+        _param._parent = _constructor
+        _constructor.parameters.push(_param)
+    
+        builder.insert(_constructor)
+        builder.fieldInsert(elem, 'operations', _constructor)
+      }
+        
+      if (!hasAssignOp) {
+        _operator = new type.UMLOperation()
+        _operator.name = 'operator='
+        _operator.visibility = type.UMLModelElement.VK_PUBLIC
+        _operator._parent = elem
+
+        // return
+        _param = new type.UMLParameter()
+        _param.visibility = type.UMLModelElement.VK_PUBLIC
+        _param.type = elem
+        _param.direction = type.UMLParameter.DK_RETURN
+        _param.stereotype = 'reference'
+        _param._parent = _operator
+        _operator.parameters.push(_param)
+
+        // other
+        _param = new type.UMLParameter()
+        _param.name = 'other'
+        _param.visibility = type.UMLModelElement.VK_PUBLIC
+        _param.type = elem
+        _param.isReadOnly = true
+        _param.direction = type.UMLParameter.DK_OUT
+        _param._parent = _operator
+        _operator.parameters.push(_param)
+
+        builder.insert(_operator)
+        builder.fieldInsert(elem, 'operations', _operator)
+      }
+    }
+
+    if (!hasDestructor) {
+      _destructor = new type.UMLOperation()
+      _destructor.name = '~' + elem.name
+      _destructor.visibility = type.UMLModelElement.VK_PUBLIC
+      _destructor._parent = elem
+
+      builder.insert(_destructor)
+      builder.fieldInsert(elem, 'operations', _destructor)
+    }
+  }
+
+	// if (!hasEqualOp) {
+	// 	_operator = new type.UMLOperation()
+	// 	_operator.name = 'operator=='
+	// 	_operator.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_operator.stereotype = 'readOnly'
+	// 	_operator._parent = elem
+
+	// 	// return
+	// 	_param = new type.UMLParameter()
+	// 	_param.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_param.type = 'bool'
+	// 	_param.direction = type.UMLParameter.DK_RETURN
+	// 	_param._parent = _operator
+	// 	_operator.parameters.push(_param)
+
+	// 	// other
+	// 	_param = new type.UMLParameter()
+	// 	_param.name = 'other'
+	// 	_param.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_param.type = elem
+	// 	_param.isReadOnly = true
+	// 	_param.direction = type.UMLParameter.DK_OUT
+	// 	_param._parent = _operator
+	// 	_operator.parameters.push(_param)
+
+	// 	builder.insert(_operator)
+	// 	builder.fieldInsert(elem, 'operations', _operator)
+	// }
+
+	// if (!hasDiffOp) {
+	// 	_operator = new type.UMLOperation()
+	// 	_operator.name = 'operator!='
+	// 	_operator.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_operator.stereotype = 'readOnly'
+	// 	_operator._parent = elem
+
+	// 	// return
+	// 	_param = new type.UMLParameter()
+	// 	_param.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_param.type = 'bool'
+	// 	_param.direction = type.UMLParameter.DK_RETURN
+	// 	_param._parent = _operator
+	// 	_operator.parameters.push(_param)
+
+	// 	// other
+	// 	_param = new type.UMLParameter()
+	// 	_param.name = 'other'
+	// 	_param.visibility = type.UMLModelElement.VK_PUBLIC
+	// 	_param.type = elem
+	// 	_param.isReadOnly = true
+	// 	_param.direction = type.UMLParameter.DK_OUT
+	// 	_param._parent = _operator
+	// 	_operator.parameters.push(_param)
+
+	// 	builder.insert(_operator)
+	// 	builder.fieldInsert(elem, 'operations', _operator)
+	// }
+
+	builder.end()
+	var cmd = builder.getOperation()
+	app.repository.doOperation(cmd)
 }
 
 /**
@@ -308,10 +585,18 @@ class CppCodeGenerator {
     }
 
     var writeSignal = (codeWriter, elem, cppCodeGen) => {
+      var identifier = ''
+      var signalName = elem.name
+
+      if (cppCodeGen.genOptions.useQt) {
+        identifier = 'Q_SIGNAL '
+      } else { // using function pointer
+        signalName = '(*' + signalName + ')'
+      }
+
       var i
       var modifierList = cppCodeGen.getModifiers(elem)
       var modifierStr = ''
-      var identifier = ''
 
       for (i = 0; i < modifierList.length; i++) {
         modifierStr += modifierList[i] + ' '
@@ -325,11 +610,7 @@ class CppCodeGenerator {
       // doc
       var docs = cppCodeGen.getDocuments(elem.documentation)
 
-      if (cppCodeGen.genOptions.useQt) {
-        identifier = 'Q_SIGNAL '
-      }
-
-      codeWriter.writeLine(docs + identifier + modifierStr + 'void ' + elem.name + '(' + params.join(', ') + ');')
+      codeWriter.writeLine(docs + identifier + modifierStr + 'void ' + signalName + '(' + params.join(', ') + ');')
     }
 
     var writeEnumeration = (codeWriter, elem, cppCodeGen) => {
@@ -379,7 +660,7 @@ class CppCodeGenerator {
       }
 
       var writeInheritance = (elem) => {
-        var genList = cppCodeGen.getSuperClasses(elem)
+        var genList = getSuperClasses(elem)
         var i
         var term = []
 
@@ -402,6 +683,10 @@ class CppCodeGenerator {
       }
 
       var writeProperties = (codeWriter , elem, memberAttr, cppCodeGen) => {
+        /**
+         * Check if currentOperation is a setter method
+         * @param {UMLOperation} currentOperation 
+         */
         var isSetterMethod = (currentOperation) => {
           if (currentOperation.parameters.length > 2) {
             return false
@@ -418,41 +703,35 @@ class CppCodeGenerator {
           return true
         }
 
-        var isAsProperty = (elem) => {
-          var isAbleAsPointer = (elem) => {
-            // multiplicity '0..1' is used as pointer
-            if (elem.multiplicity === '0..1') {
-              return true
-            }
-
-            // opposite elem aggregation 'none' and 'shared' is used as pointer
-            if (elem instanceof type.UMLAssociationEnd) {
-              return getOppositeElemAggregation(elem) !== type.UMLAttribute.AK_COMPOSITE
-            }
-
-            // elem aggregation 'shared' is used as pointer
-            return elem.aggregation === type.UMLAttribute.AK_SHARED
-          }
-
+        /**
+         * Check if elem could be used as property (Use this only with Qt framework)
+         * @param {Object} elem 
+         */
+        var likeProperty = (elem) => {
           if (elem.isStatic) {
             return false;
           }
 
           // QtObject with type as non pointer is not used as property
           // QtObject disable assignement operator and copy constructor
-          return !(hasAsyncMethod(elem.reference) && !isAbleAsPointer(elem))
+          return !(hasAsyncMethod(elem.reference) && !likePointer(elem))
         }
 
         var attrs = cppCodeGen.classifyVisibility(memberAttr)
         // generate only a valid property
         var securedAttributes = attrs._protected.concat(attrs._private).filter(function(attr) {
-          return isAsProperty(attr)
+          return likeProperty(attr)
         })
 
-        securedAttributes.forEach((attr) => {
+        for (var c = 0; c < securedAttributes.length; c++) {
+          var attr = securedAttributes[c]
           var i
+          
+          // For the moment, ignore an array, but you must fix it with property list (QQmlListProperty)
+          if (!['1', '0..1', ''].includes(attr.multiplicity)) { continue }
+
           // for variable
-          const variableStr = cppCodeGen.getVariableDeclaration(attr, true)
+          var variableStr = cppCodeGen.getType(attr, false) + ' ' + attr.name
           
           // for member
           const memberStr = ' MEMBER m_' + attr.name
@@ -479,6 +758,9 @@ class CppCodeGenerator {
             }
           }
           
+          // ignore a statement like this "Q_PROPERTY(std::auto_ptr<type> propertyName MEMBER attrName)"
+          if (cppCodeGen.genOptions.useAuto_ptr && attr.multiplicity === '0..1' && !hasGetter) { continue }
+
           // for signal
           var signalStr = ''
           const signalRef = attr.name + 'Changed'
@@ -492,7 +774,7 @@ class CppCodeGenerator {
           
           // writing property
           codeWriter.writeLine('Q_PROPERTY(' + variableStr + (hasGetter ? getterStr : memberStr) + ((!elem.isReadOnly && hasSetter) ? (setterStr + signalStr) : '') + ')')
-        })
+        }
       }
 
       // member variable
@@ -507,6 +789,10 @@ class CppCodeGenerator {
         } else if (asso.end2.reference === elem && asso.end1.navigable === true && asso.end1.name.length !== 0) {
           memberAttr.push(asso.end1)
         }
+      }
+      // it's time to fill the elem with all necessaries operations
+      if (cppCodeGen.genOptions.implementation) {
+        generateNecessaryOperations(elem, memberAttr, cppCodeGen)
       }
 
       // method
@@ -1546,13 +1832,11 @@ class CppCodeGenerator {
 
         if (returnTypeParam.length > 0) {
           validReturnParam = returnTypeParam[0]
-          returnType += this.getType(validReturnParam, true)
+          returnType += this.getType(validReturnParam)
 
           // for parameter stereotype
           if ((validReturnParam.stereotype instanceof type.UMLModelElement ? validReturnParam.stereotype.name : validReturnParam.stereotype) === 'reference') {
             stereotypeIdentifier = ' &'
-          } else if ((validReturnParam.stereotype instanceof type.UMLModelElement ? validReturnParam.stereotype.name : validReturnParam.stereotype) === 'pointer') {
-            stereotypeIdentifier = '* '
           }
           
           docs += '\n@return ' + returnType + (validReturnParam.documentation.length ? ' : ' + validReturnParam.documentation : '')
@@ -1798,17 +2082,23 @@ class CppCodeGenerator {
    * parsing type from element
    *
    * @param {Object} elem
-   * @param {boolean} isPrototype
+   * @param {boolean} allowAuto_ptr
    * @param {boolean} ignoreQualifier
    * @return {Object} string
    */
-  getType (elem, isPrototype = false, ignoreQualifier = false) {
+  getType (elem, allowAuto_ptr = true, ignoreQualifier = false) {
     var _elemType
     var _typeStr = 'void'
     var _toDecl = false
     var _isRecognizedType = true
     var _isAssociationContainer = false
+    var _isNotSharedWitthAutoPtr = false
 
+    /**
+     * Get the string of the correct type (with her container prefix)
+     * @param {Object} _elemType 
+     * @return {Object} string
+     */
     var getCorrectType = (_elemType) => {
       var _typeStr = this.getContainersSpecifierStr(_elemType, false) + _elemType.name
       if (this.getTemplateParameter(_elemType).length > 0) {
@@ -1827,15 +2117,17 @@ class CppCodeGenerator {
           const _key = getOppositeElem(elem).qualifiers[0]
           const _containerType = this.genOptions.useQt ? 'QHash<' : 'std::hash<'
           const _keyType = this.getType(_key)
-          const _valueType = this.getType(elem, isPrototype, true)
+          const _valueType = this.getType(elem, allowAuto_ptr, true)
 
           _typeStr = _containerType + _keyType + ',' + _valueType + '>'
 
         } else {
           _typeStr = getCorrectType(_elemType)
-          if (getOppositeElemAggregation(elem) !== type.UMLAttribute.AK_COMPOSITE) {
+          if (getOppositeElem(elem).aggregation !== type.UMLAttribute.AK_COMPOSITE) {
             _typeStr += '*'
             _toDecl = true
+          } else if (this.genOptions.useAuto_ptr && !(elem._parent instanceof type.UMLSignal)) {
+            _isNotSharedWitthAutoPtr = true
           }
         }
       }
@@ -1849,7 +2141,8 @@ class CppCodeGenerator {
         _isRecognizedType = false
       }
 
-      if (elem.direction === type.UMLParameter.DK_INOUT) {
+      if (elem.direction === type.UMLParameter.DK_INOUT ||
+          (elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'pointer') {
         _typeStr += '*'
         _toDecl = true
       }
@@ -1866,6 +2159,8 @@ class CppCodeGenerator {
       if (elem.aggregation === type.UMLAttribute.AK_SHARED) {
         _typeStr += '*'
         _toDecl = true
+      } else if (this.genOptions.useAuto_ptr && !(elem._parent instanceof type.UMLSignal)) {
+        _isNotSharedWitthAutoPtr = true
       }
     }
 
@@ -1885,13 +2180,16 @@ class CppCodeGenerator {
             _typeStr += '*'
           }
         } else if (elem.multiplicity === '0..1') {
+          if (_isNotSharedWitthAutoPtr && allowAuto_ptr) {
+            _typeStr = 'std::auto_ptr<' + _typeStr + '>'
+            this.parseUnrecognizedType('memory')
+          } else {
+            _typeStr += '*'
+          }
+          _toDecl = true
+        } else if (elem.multiplicity !== '1' && elem instanceof type.UMLParameter && elem.direction === type.UMLParameter.DK_RETURN) {
           _typeStr += '*'
           _toDecl = true
-        } else if (elem.multiplicity !== '1') {
-          if (isPrototype) {
-            _typeStr += '*'
-            _toDecl = true
-          }
         }
       }
 
@@ -1959,24 +2257,11 @@ class CppCodeGenerator {
 
     return _declarationStr.join(' ')
   }
-
-  /**
-   * get all super class / interface from element
-   *
-   * @param {Object} elem
-   * @return {Object} list
-   */
-  getSuperClasses (elem) {
-    var generalizations = app.repository.getRelationshipsOf(elem, function (rel) {
-      return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.source === elem)
-    })
-    return generalizations
-  }
 }
 
 function generate (baseModel, basePath, logPath, options) {
   if (!logPath || !logPath.length) {
-    logPath = basePath + '/' + baseModel.name + '.slf'
+    logPath = basePath + (options.windows ? '\\' : '/') + baseModel.name + '.slf'
     app.toast.info('Generate project config in : ' + logPath)
   }
 

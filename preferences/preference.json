@@ -12,6 +12,24 @@
       "type": "check",
       "default": false
     },
+    "cpp.gen.useQt": {
+      "text": "Use Qt framework",
+      "description": "Use QObject fonctionality for all async methods (Signal and Reception)",
+      "type": "check",
+      "default": false
+    },
+    "cpp.gen.implementation": {
+      "text": "Implementation model step",
+      "description": "Add all necessary methods for implementation model",
+      "type": "check",
+      "default": false
+    },
+    "cpp.gen.useAuto_ptr": {
+      "text": "Use auto_ptr",
+      "description": "Use 'auto_ptr' instead of '*' with the class attribute and/or the composite [0..1] association",
+      "type": "check",
+      "default": false
+    },
     "cpp.gen.useTab": {
       "text": "Use Tab",
       "description": "Use Tab for indentation instead of spaces.",
@@ -35,12 +53,6 @@
       "description": "Use vector<> instead of pointer.",
       "type": "check",
       "default": true
-    },
-    "cpp.gen.useQt": {
-      "text": "Use Qt framework",
-      "description": "Use QObject fonctionality for Signal and Reception",
-      "type": "check",
-      "default": false
     },
     "cpp.gen.genCpp": {
       "text": "Generate *.cpp file",
