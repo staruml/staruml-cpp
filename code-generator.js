@@ -312,6 +312,12 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
       }
     }
 
+    // for assignment operator
+    else if (currentOp.name === 'operator=' &&
+            currentOp.parameters.length >= 1 && currentOp.parameters[0].type === elem) {
+      hasAssignOp = true
+    }
+
     // for destructor
     else if (currentOp.name === ('~' + elem.name) && !currentOp.parameters.length) {
       hasDestructor = true
@@ -323,12 +329,6 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 		} else if (currentOp.name === 'operator!=') {
 			hasDiffOp = true
 		}
-
-    // for assignment operator
-    else if (currentOp.name === 'operator=' &&
-            currentOp.parameters.length >= 1 && currentOp.parameters[0].type === elem) {
-      hasAssignOp = true
-    }
   }
 
   // generating ...
@@ -344,40 +344,114 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 		builder.insert(_constructor)
 		builder.fieldInsert(elem, 'operations', _constructor)
 	}
+  
+  if (memberAttrs.length) {
 	
-  if (hasDynamicAttr) {
-    // don't generate copy constructor and assign operator in QObject child class
-    if (!(cppCodeGen.genOptions.useQt && cppCodeGen.haveSR)) {
-      if (!hasCopyConstructor) {
-        _constructor = new type.UMLOperation()
-        _constructor.name = elem.name
-        _constructor.visibility = type.UMLModelElement.VK_PUBLIC
-        _constructor._parent = elem
-        
-        _param = new type.UMLParameter()
-        _param.name = 'other'
-        _param.direction = type.UMLParameter.DK_OUT
-        _param.type = elem
-        _param.isReadOnly = true
-        _param._parent = _constructor
-        _constructor.parameters.push(_param)
-    
-        builder.insert(_constructor)
-        builder.fieldInsert(elem, 'operations', _constructor)
+    if (hasDynamicAttr) {
+      // don't generate copy constructor and assign operator in QObject child class
+      if (!(cppCodeGen.genOptions.useQt && cppCodeGen.haveSR && elem.isAbstract)) {
+        if (!hasCopyConstructor) {
+          _constructor = new type.UMLOperation()
+          _constructor.name = elem.name
+          _constructor.visibility = type.UMLModelElement.VK_PUBLIC
+          _constructor._parent = elem
+          
+          _param = new type.UMLParameter()
+          _param.name = 'other'
+          _param.direction = type.UMLParameter.DK_OUT
+          _param.type = elem
+          _param.isReadOnly = true
+          _param._parent = _constructor
+          _constructor.parameters.push(_param)
+      
+          builder.insert(_constructor)
+          builder.fieldInsert(elem, 'operations', _constructor)
+        }
+          
+        if (!hasAssignOp) {
+          _operator = new type.UMLOperation()
+          _operator.name = 'operator='
+          _operator.visibility = type.UMLModelElement.VK_PUBLIC
+          _operator._parent = elem
+
+          // return
+          _param = new type.UMLParameter()
+          _param.visibility = type.UMLModelElement.VK_PUBLIC
+          _param.type = elem
+          _param.direction = type.UMLParameter.DK_RETURN
+          _param.stereotype = 'reference'
+          _param._parent = _operator
+          _operator.parameters.push(_param)
+
+          // other
+          _param = new type.UMLParameter()
+          _param.name = 'other'
+          _param.visibility = type.UMLModelElement.VK_PUBLIC
+          _param.type = elem
+          _param.isReadOnly = true
+          _param.direction = type.UMLParameter.DK_OUT
+          _param._parent = _operator
+          _operator.parameters.push(_param)
+
+          builder.insert(_operator)
+          builder.fieldInsert(elem, 'operations', _operator)
+        }
       }
-        
-      if (!hasAssignOp) {
+
+      if (!hasDestructor) {
+        _destructor = new type.UMLOperation()
+        _destructor.name = '~' + elem.name
+        _destructor.visibility = type.UMLModelElement.VK_PUBLIC
+        _destructor._parent = elem
+
+        builder.insert(_destructor)
+        builder.fieldInsert(elem, 'operations', _destructor)
+      }
+    }
+
+    if (!elem.isAbstract) {
+
+      if (!hasEqualOp) {
         _operator = new type.UMLOperation()
-        _operator.name = 'operator='
+        _operator.name = 'operator=='
         _operator.visibility = type.UMLModelElement.VK_PUBLIC
+        _operator.stereotype = 'readOnly'
         _operator._parent = elem
 
         // return
         _param = new type.UMLParameter()
         _param.visibility = type.UMLModelElement.VK_PUBLIC
-        _param.type = elem
+        _param.type = 'bool'
         _param.direction = type.UMLParameter.DK_RETURN
-        _param.stereotype = 'reference'
+        _param._parent = _operator
+        _operator.parameters.push(_param)
+
+        // other
+        _param = new type.UMLParameter()
+        _param.name = 'other'
+        _param.visibility = type.UMLModelElement.VK_PUBLIC
+        _param.type = elem
+        _param.isReadOnly = true
+        _param.direction = type.UMLParameter.DK_OUT
+        _param._parent = _operator
+        _operator.parameters.push(_param)
+
+        builder.insert(_operator)
+        builder.fieldInsert(elem, 'operations', _operator)
+      }
+
+      if (!hasDiffOp) {
+        _operator = new type.UMLOperation()
+        _operator.name = 'operator!='
+        _operator.visibility = type.UMLModelElement.VK_PUBLIC
+        _operator.stereotype = 'readOnly'
+        _operator._parent = elem
+
+        // return
+        _param = new type.UMLParameter()
+        _param.visibility = type.UMLModelElement.VK_PUBLIC
+        _param.type = 'bool'
+        _param.direction = type.UMLParameter.DK_RETURN
         _param._parent = _operator
         _operator.parameters.push(_param)
 
@@ -395,75 +469,7 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
         builder.fieldInsert(elem, 'operations', _operator)
       }
     }
-
-    if (!hasDestructor) {
-      _destructor = new type.UMLOperation()
-      _destructor.name = '~' + elem.name
-      _destructor.visibility = type.UMLModelElement.VK_PUBLIC
-      _destructor._parent = elem
-
-      builder.insert(_destructor)
-      builder.fieldInsert(elem, 'operations', _destructor)
-    }
   }
-
-	if (!hasEqualOp) {
-		_operator = new type.UMLOperation()
-		_operator.name = 'operator=='
-		_operator.visibility = type.UMLModelElement.VK_PUBLIC
-		_operator.stereotype = 'readOnly'
-		_operator._parent = elem
-
-		// return
-		_param = new type.UMLParameter()
-		_param.visibility = type.UMLModelElement.VK_PUBLIC
-		_param.type = 'bool'
-		_param.direction = type.UMLParameter.DK_RETURN
-		_param._parent = _operator
-		_operator.parameters.push(_param)
-
-		// other
-		_param = new type.UMLParameter()
-		_param.name = 'other'
-		_param.visibility = type.UMLModelElement.VK_PUBLIC
-		_param.type = elem
-		_param.isReadOnly = true
-		_param.direction = type.UMLParameter.DK_OUT
-		_param._parent = _operator
-		_operator.parameters.push(_param)
-
-		builder.insert(_operator)
-		builder.fieldInsert(elem, 'operations', _operator)
-	}
-
-	if (!hasDiffOp) {
-		_operator = new type.UMLOperation()
-		_operator.name = 'operator!='
-		_operator.visibility = type.UMLModelElement.VK_PUBLIC
-		_operator.stereotype = 'readOnly'
-		_operator._parent = elem
-
-		// return
-		_param = new type.UMLParameter()
-		_param.visibility = type.UMLModelElement.VK_PUBLIC
-		_param.type = 'bool'
-		_param.direction = type.UMLParameter.DK_RETURN
-		_param._parent = _operator
-		_operator.parameters.push(_param)
-
-		// other
-		_param = new type.UMLParameter()
-		_param.name = 'other'
-		_param.visibility = type.UMLModelElement.VK_PUBLIC
-		_param.type = elem
-		_param.isReadOnly = true
-		_param.direction = type.UMLParameter.DK_OUT
-		_param._parent = _operator
-		_operator.parameters.push(_param)
-
-		builder.insert(_operator)
-		builder.fieldInsert(elem, 'operations', _operator)
-	}
 
 	builder.end()
 	var cmd = builder.getOperation()
@@ -2245,7 +2251,7 @@ class CppCodeGenerator {
       if (_isRecognizedType) {
 
         // create a dependency of elem anchestor class and elem type
-        if (!_likePointer && !(elem instanceof type.UMLAssociationEnd)) {
+        if (!_likePointer && !(elem instanceof type.UMLAssociationEnd) && this.genOptions.implementation) {
           const anchestorClass = this.getAnchestorsClass(elem)
 
           if (anchestorClass.length && !anchestorClass.includes(_elemType)) {
