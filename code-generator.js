@@ -1074,6 +1074,10 @@ class CppCodeGenerator {
    * @param {boolean} toDeclared 
    */
   parseElemType (type, toDeclared) {
+    if (!type.name.length) {
+      return
+    }
+
     var elemType = type
     var anchestors = this.getAnchestorsClass(elemType)
     if (anchestors.length) {
@@ -1105,6 +1109,10 @@ class CppCodeGenerator {
   }
 
   parseUnrecognizedType (typeExp) {
+    if (!typeExp.length) {
+      return
+    }
+    
     // if typeExp equal to an   type1<type2, type3>
     var typeNames = typeExp.split('<')
 
@@ -2200,8 +2208,10 @@ class CppCodeGenerator {
 
       if (_elemType instanceof type.UMLModelElement && _elemType.name.length > 0) {
         _typeStr = getCorrectType(_elemType)
-      } else if ((typeof _elemType === 'string') && _elemType.length > 0) {
-        _typeStr = _elemType
+      } else if ((typeof _elemType === 'string')) {
+        if (_elemType.length > 0) {
+          _typeStr = _elemType
+        }
         _isRecognizedType = false
       }
     } else { // member variable inside class
@@ -2209,8 +2219,10 @@ class CppCodeGenerator {
 
       if (_elemType instanceof type.UMLModelElement && _elemType.name.length > 0) {
         _typeStr = getCorrectType(_elemType)
-      } else if ((typeof _elemType === 'string') && _elemType.length > 0) {
-        _typeStr = _elemType
+      } else if ((typeof _elemType === 'string')) {
+        if (_elemType.length > 0) {
+          _typeStr = _elemType
+        }
         _isRecognizedType = false
       }
 
