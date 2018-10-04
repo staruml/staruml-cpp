@@ -113,7 +113,7 @@ function getSuperClasses (elem) {
  * @param {UMLClassifier} elem 
  */
 function hasAsyncMethod(elem) {
-  if (elem instanceof type.UMLClassifier === false) {
+  if (!(elem instanceof type.UMLClassifier)) {
     return false
   }
   if (elem.receptions.length) {
@@ -349,7 +349,7 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 	
     if (hasDynamicAttr) {
       // don't generate copy constructor and assign operator in QObject child class
-      if (!(cppCodeGen.genOptions.useQt && cppCodeGen.haveSR && elem.isAbstract)) {
+      if (!((cppCodeGen.genOptions.useQt && cppCodeGen.haveSR) || elem.isAbstract)) {
         if (!hasCopyConstructor) {
           _constructor = new type.UMLOperation()
           _constructor.name = elem.name
@@ -813,7 +813,7 @@ class CppCodeGenerator {
           }
           
           // ignore a statement like this "Q_PROPERTY(std::auto_ptr<type> propertyName MEMBER attrName)"
-          if (cppCodeGen.genOptions.useAuto_ptr && attr.multiplicity === '0..1' && !hasGetter) { continue }
+          if (cppCodeGen.genOptions.useSmartPtr && attr.multiplicity === '0..1' && !hasGetter) { continue }
 
           // for signal
           var signalStr = ''
@@ -2149,11 +2149,11 @@ class CppCodeGenerator {
    * parsing type from element
    *
    * @param {Object} elem
-   * @param {boolean} allowAuto_ptr
+   * @param {boolean} allowSmartPtr
    * @param {boolean} ignoreQualifier
    * @return {Object} string
    */
-  getType (elem, allowAuto_ptr = true, ignoreQualifier = false) {
+  getType (elem, allowSmartPtr = true, ignoreQualifier = false) {
     var _elemType
     var _typeStr = 'void'
     var _likePointer = likePointer(elem, this)
@@ -2184,13 +2184,13 @@ class CppCodeGenerator {
           const _key = getOppositeElem(elem).qualifiers[0]
           const _containerType = this.genOptions.useQt ? 'QHash<' : 'std::hash<'
           const _keyType = this.getType(_key)
-          const _valueType = this.getType(elem, allowAuto_ptr, true)
+          const _valueType = this.getType(elem, allowSmartPtr, true)
 
           _typeStr = _containerType + _keyType + ',' + _valueType + '>'
 
         } else {
           _typeStr = getCorrectType(_elemType)
-          _isNotSharedWitthAutoPtr = (this.genOptions.useAuto_ptr &&
+          _isNotSharedWitthAutoPtr = (this.genOptions.useSmartPtr &&
                                       !(elem._parent instanceof type.UMLSignal) &&
                                       getOppositeElem(elem).aggregation === type.UMLAttribute.AK_COMPOSITE)
         }
@@ -2214,7 +2214,7 @@ class CppCodeGenerator {
         _isRecognizedType = false
       }
 
-      _isNotSharedWitthAutoPtr = (this.genOptions.useAuto_ptr &&
+      _isNotSharedWitthAutoPtr = (this.genOptions.useSmartPtr &&
                                   !(elem._parent instanceof type.UMLSignal) &&
                                   elem.aggregation !== type.UMLAttribute.AK_SHARED)
     }
@@ -2239,9 +2239,14 @@ class CppCodeGenerator {
             _typeStr += '*'
           }
         } else if (elem.multiplicity === '0..1') {
-          if (_isNotSharedWitthAutoPtr && allowAuto_ptr) {
-            _typeStr = 'std::auto_ptr<' + _typeStr + '>'
-            this.parseUnrecognizedType('memory')
+          if (_isNotSharedWitthAutoPtr && allowSmartPtr) {
+            if (this.genOptions.useQt) {
+              _typeStr = 'QScopedPointer<' + _typeStr + '>'
+              this.parseUnrecognizedType('QScopedPointer')
+            } else {
+              _typeStr = 'std::unique_ptr<' + _typeStr + '>'
+              this.parseUnrecognizedType('memory')
+            }
           } else {
             _typeStr += '*'
           }

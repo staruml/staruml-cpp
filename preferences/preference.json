@@ -24,9 +24,9 @@
       "type": "check",
       "default": false
     },
-    "cpp.gen.useAuto_ptr": {
-      "text": "Use auto_ptr",
-      "description": "Use 'auto_ptr' instead of '*' with the class attribute and/or the composite [0..1] association",
+    "cpp.gen.useSmartPtr": {
+      "text": "Use smart pointer",
+      "description": "Use smart pointer instead of * with the classifier attribute and/or the composite [0..1] association",
       "type": "check",
       "default": false
     },
