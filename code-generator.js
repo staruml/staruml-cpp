@@ -206,7 +206,7 @@ function likePointer (elem, cppCodeGen, ignoreMultiplicity = false) {
   // direction 'inout' || static array return value
   else if (elem instanceof type.UMLParameter) {
     return elem.direction === type.UMLParameter.DK_INOUT ||
-          (elem.multiplicity !== '1' && elem.multiplicity.match(/^\d+$/) && elem.direction === type.UMLParameter.DK_RETURN)
+          (!ignoreMultiplicity && elem.multiplicity !== '1' && elem.multiplicity.match(/^\d+$/) && elem.direction === type.UMLParameter.DK_RETURN)
   }
 
   // elem aggregation 'shared'
@@ -767,7 +767,7 @@ class CppCodeGenerator {
           }
 
           // QtObject with type as non pointer is not used as property
-          // QtObject disable assignement operator and copy constructor
+          // because it disable assignement operator and copy constructor
           return !(hasAsyncMethod(elem.reference) && !likePointer(elem, cppCodeGen))
         }
 
@@ -2167,7 +2167,7 @@ class CppCodeGenerator {
     var _likePointer = likePointer(elem, this)
     var _isRecognizedType = true
     var _isAssociationContainer = false
-    var _isNotSharedWitthAutoPtr = false
+    var _isNotSharedWithAutoPtr = false
 
     /**
      * Get the string of the correct type (with her container prefix)
@@ -2198,8 +2198,8 @@ class CppCodeGenerator {
 
         } else {
           _typeStr = getCorrectType(_elemType)
-          _isNotSharedWitthAutoPtr = (this.genOptions.useSmartPtr &&
-                                      !(elem._parent instanceof type.UMLSignal) &&
+          _isNotSharedWithAutoPtr = (this.genOptions.useSmartPtr &&
+                                      !(elem._parent instanceof type.UMLSignal) /*Signal is used as method here*/ &&
                                       getOppositeElem(elem).aggregation === type.UMLAttribute.AK_COMPOSITE)
         }
       }
@@ -2226,32 +2226,28 @@ class CppCodeGenerator {
         _isRecognizedType = false
       }
 
-      _isNotSharedWitthAutoPtr = (this.genOptions.useSmartPtr &&
-                                  !(elem._parent instanceof type.UMLSignal) &&
+      _isNotSharedWithAutoPtr = (this.genOptions.useSmartPtr &&
+                                  !(elem._parent instanceof type.UMLSignal) /*Signal is used as method here*/ &&
                                   elem.aggregation !== type.UMLAttribute.AK_SHARED)
     }
 
     if (!_isAssociationContainer) {
-      if (likePointer(elem, this, true)) {
+      const _likePointer_withoutMultiplicity = likePointer(elem, this, true)
+
+      // first, generate a pointer : if element is pure pointer not by the multiplicity parameter
+      if (_likePointer_withoutMultiplicity) {
         _typeStr += '*'
       }
   
       // multiplicity
       if (elem.multiplicity) {
-        if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
-          if (this.genOptions.useVector) {
-            if (this.genOptions.useQt) {
-              _typeStr = 'QVector<' + _typeStr + '>'
-              this.parseUnrecognizedType('QVector')
-            } else {
-              _typeStr = 'std::vector<' + _typeStr + '>'
-              this.parseUnrecognizedType('vector')
-            }
-          } else {
-            _typeStr += '*'
-          }
-        } else if (elem.multiplicity === '0..1') {
-          if (_isNotSharedWitthAutoPtr && allowSmartPtr) {
+
+        // [0..1]
+        // multiplicity '0..1' is often used as pointer
+        if (elem.multiplicity === '0..1') {
+          // use a smart pointer if all below statements is true
+          if (_isNotSharedWithAutoPtr && allowSmartPtr && !_likePointer_withoutMultiplicity) {
+            // using a smart pointer according to the choosed preference
             if (this.genOptions.useQt) {
               _typeStr = 'QScopedPointer<' + _typeStr + '>'
               this.parseUnrecognizedType('QScopedPointer')
@@ -2259,18 +2255,78 @@ class CppCodeGenerator {
               _typeStr = 'std::unique_ptr<' + _typeStr + '>'
               this.parseUnrecognizedType('memory')
             }
-          } else {
+            
+          }
+          // else make a simple pointer
+          else {
             _typeStr += '*'
           }
+          // if element is pure pointer, the declaration is like below :
+          // type** name;
+          // else : std::unique_ptr<type> name;
+          _likePointer = true
+
+        }
+        else {
+          // make type as pointer : if (QtObject or Interface) is used with current type is not like pointer
+          // because QtObject and Interface does not implement : copy constructor, assignment operator
+          if (!_likePointer_withoutMultiplicity &&
+              (this.genOptions.useQt && hasAsyncMethod(elem.reference) /*QtObject class*/ ||
+              elem.reference instanceof type.UMLInterface /*Interface*/)) {
+
+            // [1]
+            // use a smart pointer if all below statements is true
+            if (elem.multiplicity === '1' &&
+                _isNotSharedWithAutoPtr && allowSmartPtr && !_likePointer_withoutMultiplicity) {
+              // using a smart pointer according to the specified preference
+              if (this.genOptions.useQt) {
+                _typeStr = 'QScopedPointer<' + _typeStr + '>'
+                this.parseUnrecognizedType('QScopedPointer')
+              } else {
+                _typeStr = 'std::unique_ptr<' + _typeStr + '>'
+                this.parseUnrecognizedType('memory')
+              }
+            } else {
+              _typeStr += '*'
+            }
+
+            _likePointer = true
+          }
+
+          // [ARRAY] dynamic
+          if (['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
+            // use a vector if it is specified in the preference
+            if (this.genOptions.useVector) {
+              if (this.genOptions.useQt) {
+                _typeStr = 'QVector<' + _typeStr + '>'
+                this.parseUnrecognizedType('QVector')
+              } else {
+                _typeStr = 'std::vector<' + _typeStr + '>'
+                this.parseUnrecognizedType('vector')
+              }
+            }
+            // else make a simple pointer instead
+            else {
+              _typeStr += '*'
+
+              _likePointer = true
+            }
+          }
+
+          // i don't check here the [ARRAY] static because the declaration is like below :
+          // type name[size];
+          // the size is setted after the variable name, then check it in variable declaration
         }
       }
 
       if (_isRecognizedType) {
 
+        // if all below statement is true :
         // create a dependency of elem anchestor class and elem type
         if (!_likePointer && !(elem instanceof type.UMLAssociationEnd) && this.genOptions.implementation) {
           const anchestorClass = this.getAnchestorsClass(elem)
 
+          // we can continue : if _elemType is not the anchestor of the elem
           if (anchestorClass.length && !anchestorClass.includes(_elemType)) {
             var parentClass = anchestorClass[0]
             // ignore this operation if the dependency is already exist
