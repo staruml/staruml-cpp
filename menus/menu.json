@@ -1,0 +1,19 @@
+{
+  "menu": [
+    {
+      "id": "tools",
+      "submenu": [
+        {
+          "label": "C++",
+          "id": "tools.cpp",
+          "submenu": [
+            { "label": "Generate Code...", "id": "tools.cpp.generate", "command": "cpp:generate" },
+            { "label": "Reverse Code...", "id": "tools.cpp.reverse", "command": "cpp:reverse" },
+            { "type": "separator" },
+            { "label": "Configure...", "id": "tools.cpp.configure", "command": "cpp:configure" }
+          ]
+        }
+      ]
+    }
+  ]
+}
