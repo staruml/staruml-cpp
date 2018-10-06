@@ -129,6 +129,46 @@ function hasAsyncMethod(elem) {
 }
 
 /**
+ * Check if attr has accessors method
+ * @param {Object} attr 
+ * @return {Integer} 0: noAccessor | 1: getter | 2: setter | 3: all
+ */
+function accessorMethodIndex(attr) {
+  var hasGetter = false
+  var hasSetter = false
+
+  if (attr instanceof type.UMLParameter) {
+    return 0
+  }
+
+  const parent = attr instanceof type.UMLAssociationEnd ? getOppositeElem(attr).reference : attr._parent
+  const attrType = attr instanceof type.UMLAssociationEnd ? attr.reference : attr.type
+  
+  for (var i = 0; i < parent.operations.length; i++) {
+    const currentOp = parent.operations[i]
+
+    if (currentOp.name === ('set' + firstUpperCase(attr.name)) ||
+        currentOp.name === attr.name) {
+      
+      if (currentOp.parameters.length === 1 && currentOp.parameters[0].type === attrType) {
+        if (currentOp.parameters[0].direction === type.UMLParameter.DK_RETURN) {
+          hasGetter = true
+        } else {
+          hasSetter = true
+        }
+      }
+    }
+
+    if (hasGetter && hasSetter) {
+      return 3
+    }
+  }
+
+  return hasGetter ? 1 : hasSetter ? 2 : 0
+}
+
+
+/**
  * return an elem if it is instance of association end
  * @param {associationEnd} elem
  * @return {associationEnd}
@@ -766,9 +806,12 @@ class CppCodeGenerator {
             return false;
           }
 
+          const _accessorMethodIndex = accessorMethodIndex(elem)
+
           // QtObject with type as non pointer is not used as property
           // because it disable assignement operator and copy constructor
-          return !(hasAsyncMethod(elem.reference) && !likePointer(elem, cppCodeGen))
+          return (!(hasAsyncMethod(elem.reference) && !likePointer(elem, cppCodeGen)) ||
+                    (_accessorMethodIndex === 1 || _accessorMethodIndex === 3) /* variable having atleast a getterMethod is considered as property*/)
         }
 
         var attrs = cppCodeGen.classifyVisibility(memberAttr)
@@ -812,7 +855,7 @@ class CppCodeGenerator {
             }
           }
           
-          // ignore a statement like this "Q_PROPERTY(std::auto_ptr<type> propertyName MEMBER attrName)"
+          // ignore a statement like this "Q_PROPERTY(std::unique_ptr<type> propertyName MEMBER attrName)"
           if (cppCodeGen.genOptions.useSmartPtr && attr.multiplicity === '0..1' && !hasGetter) { continue }
 
           // for signal
@@ -2246,7 +2289,9 @@ class CppCodeGenerator {
         // multiplicity '0..1' is often used as pointer
         if (elem.multiplicity === '0..1') {
           // use a smart pointer if all below statements is true
-          if (_isNotSharedWithAutoPtr && allowSmartPtr && !_likePointer_withoutMultiplicity) {
+          if (_isNotSharedWithAutoPtr && allowSmartPtr && !_likePointer_withoutMultiplicity &&
+              !(elem instanceof type.UMLParameter)) {
+
             // using a smart pointer according to the choosed preference
             if (this.genOptions.useQt) {
               _typeStr = 'QScopedPointer<' + _typeStr + '>'
@@ -2268,29 +2313,37 @@ class CppCodeGenerator {
 
         }
         else {
+
+          const isQtObject = (this.genOptions.useQt && hasAsyncMethod(elem.reference)) /*QtObject class*/
+          const isModifiable_QtObject = (isQtObject && (accessorMethodIndex(elem) >= 2))
+
           // make type as pointer : if (QtObject or Interface) is used with current type is not like pointer
           // because QtObject and Interface does not implement : copy constructor, assignment operator
           if (!_likePointer_withoutMultiplicity &&
-              (this.genOptions.useQt && hasAsyncMethod(elem.reference) /*QtObject class*/ ||
-              elem.reference instanceof type.UMLInterface /*Interface*/)) {
+              (isQtObject || elem.reference instanceof type.UMLInterface /*Interface*/)) {
 
             // [1]
             // use a smart pointer if all below statements is true
-            if (elem.multiplicity === '1' &&
-                _isNotSharedWithAutoPtr && allowSmartPtr && !_likePointer_withoutMultiplicity) {
-              // using a smart pointer according to the specified preference
-              if (this.genOptions.useQt) {
-                _typeStr = 'QScopedPointer<' + _typeStr + '>'
-                this.parseUnrecognizedType('QScopedPointer')
-              } else {
-                _typeStr = 'std::unique_ptr<' + _typeStr + '>'
-                this.parseUnrecognizedType('memory')
+            if (elem.multiplicity === '1' && !(elem instanceof type.UMLParameter) &&
+                _isNotSharedWithAutoPtr && allowSmartPtr) {
+
+              // nothing if elem is a QtObject (but not a modifiable) and not an interface
+              if (isModifiable_QtObject || elem.reference instanceof type.UMLInterface){
+                // using a smart pointer according to the specified preference
+                if (this.genOptions.useQt) {
+                  _typeStr = 'QScopedPointer<' + _typeStr + '>'
+                  this.parseUnrecognizedType('QScopedPointer')
+                } else {
+                  _typeStr = 'std::unique_ptr<' + _typeStr + '>'
+                  this.parseUnrecognizedType('memory')
+                }
+                
+                _likePointer = true
               }
             } else {
               _typeStr += '*'
+              _likePointer = true
             }
-
-            _likePointer = true
           }
 
           // [ARRAY] dynamic

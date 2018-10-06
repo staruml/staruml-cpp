@@ -3,6 +3,89 @@ Cpp Extension for StarUML 2
 This extension for StarUML(http://staruml.io) support to generate Cpp code from UML model.
 
 
+### Preference choice
+
+* `Qt` keywords with all necessary functionality. [`usefull in signal-reception`]
+```c
+    #include <QObject>
+
+    namespace ... {
+    class ... : public QObject, ...
+    {
+        Q_OBJECT
+    public:
+
+        Q_SIGNAL void signalName(int signalAttValue);
+
+        /* ...
+         * From signal : signalName
+         */
+        virtual Q_SLOT void receptionName(int signalAttValue);
+    };
+    }
+```
+
+* `Smart pointer` ready to use to _simplify the code_. Example below:
+```c
+    //! NMSPC1::C1 is composed of [0..1] NMSPC2::C2
+        // or
+    //! NMSPC1::C1 use an interface [1] NMSPC2::C2
+
+    #include <memory>
+
+    namespace NMSPC2 {
+    class C2;
+    } // end of namespace NMSPC2
+
+    namespace NMSPC1 {
+    class C1 {
+        std::unique_ptr<C2> varName; // using smart pointer
+        C2* varName; // using normal code
+    };
+    } // end of namespace NMSPC1
+```
+
+* `Implementation model` functionality added. [*`work only on Gen..`]
+
+        Parse C1 if need new necessary method,
+        then generate all need missing method.
+
+        This add in the Class C1 [in Model and Code] :
+            * operator ==, !=, =
+            * default and copy constructor
+            * destructor
+
+
+
+### Behavior [*new]
+
+
+* `ReUse` of present source code _only if the same tool regenerate it before_. [*`choose your OS before Gen.. code`]
+
+        Why he need to save the configuration of all sources code generated in a file.
+        Create the file at the first Gen.. [auto (at the same directory with the model name) if not set]
+        and choose this file on the next Gen.. to reUse the last code.
+```c
+    //! all generated operations in the cpp body code are like this :
+
+    void NMSPC1::C1::setC2(NMSPC2::C2* value)
+    //< {ID of NMSPC1::C1::setC2}
+    {
+        /*begin to write your custom code here*/
+        //! all wrotten code between { ... } are reUse in the next Gen..
+
+        NMSPC2::C2* _returnParamName; // default if setted
+
+        return _returnParamName;
+
+        /*end of your custom code*/
+    }
+    //>
+```
+* All `normal` and  _`virtual`_ operations is considered as _`virtual`_ to make `polymorphism` possible.
+* `Qualifier element` considered as `std::hash<elemType, assoEndType>`.
+
+
 
 ### UMLPackage
 * converted to _folder_ and _Cpp namespace_ in generated file type (_UMLClass_, _UMLInterface_, _UMLEnumeration_).
@@ -12,9 +95,8 @@ This extension for StarUML(http://staruml.io) support to generate Cpp code from 
 * converted to _Cpp Class_. (as a separate `.h` file)
 * `visibility` to one of modifiers `public`, `protected`, `private`. If visibility is not setted, consider as `protected`.
 * `isFinalSpecialization` and `isLeaf` property to `final` modifier.
-* Default constructor is generated.
 * All contained types (_UMLClass_, _UMLInterface_, _UMLEnumeration_) are generated as inner type definition.
-* TemplateParameter to _Cpp Template_.
+* TemplateParameter to `Cpp Template`.
 
 ### UMLAttribute
 
