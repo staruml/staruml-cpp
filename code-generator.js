@@ -1339,7 +1339,12 @@ class CppCodeGenerator {
       for (i = 0; i < cppCodeGen.toIncluded.length; i++) {
         var target = cppCodeGen.toIncluded[i]
 
-        if (target === elem || associationComp.includes(target) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
+        const anchestors = cppCodeGen.getAnchestorsClass(target)
+        if (anchestors.length) {
+          target = anchestors.reverse()[0]
+        }
+
+        if (target === elem || associationComp.includes(target) || anchestors.includes(elem)) {
           continue
         }
         if (target instanceof type.UMLPrimitiveType) {
@@ -1354,8 +1359,9 @@ class CppCodeGenerator {
 
       for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
         var target = cppCodeGen.toDeclared[i]
+        const anchestors = cppCodeGen.getAnchestorsClass(target)
         
-        if (target === elem || associationComp.includes(target) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
+        if (target === elem || associationComp.includes(target) || anchestors.includes(elem)) {
           continue
         }
         associationComp.push(target)
@@ -1370,7 +1376,13 @@ class CppCodeGenerator {
       if (dependencies.length > 0) {
         for (i = 0; i < dependencies.length; i++) {
           var target = dependencies[i]
-          if (associationComp.includes(target) || !(target instanceof type.UMLClassifier) || cppCodeGen.getAnchestorsClass(target).includes(elem)) {
+          
+          const anchestors = cppCodeGen.getAnchestorsClass(target)
+          if (anchestors.length) {
+            target = anchestors.reverse()[0]
+          }
+
+          if (associationComp.includes(target) || !(target instanceof type.UMLClassifier) || anchestors.includes(elem)) {
             continue
           }
           if (target instanceof type.UMLPrimitiveType) {
