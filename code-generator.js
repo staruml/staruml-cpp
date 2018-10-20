@@ -2306,7 +2306,11 @@ class CppCodeGenerator {
 
             // using a smart pointer according to the choosed preference
             if (this.genOptions.useQt) {
-              _typeStr = 'QScopedPointer<' + _typeStr + '>'
+              if (hasAsyncMethod(elem.reference)) {
+                _typeStr = 'QScopedPointer<' + _typeStr + ', QScopedPointerDeleteLater>'
+              } else {
+                _typeStr = 'QScopedPointer<' + _typeStr + '>'
+              }
               this.parseUnrecognizedType('QScopedPointer')
             } else {
               _typeStr = 'std::unique_ptr<' + _typeStr + '>'
@@ -2343,7 +2347,7 @@ class CppCodeGenerator {
               if (isModifiable_QtObject || elem.reference instanceof type.UMLInterface){
                 // using a smart pointer according to the specified preference
                 if (this.genOptions.useQt) {
-                  _typeStr = 'QScopedPointer<' + _typeStr + '>'
+                  _typeStr = 'QScopedPointer<' + _typeStr + ', QScopedPointerDeleteLater>'
                   this.parseUnrecognizedType('QScopedPointer')
                 } else {
                   _typeStr = 'std::unique_ptr<' + _typeStr + '>'
