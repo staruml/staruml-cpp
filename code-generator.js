@@ -105,11 +105,12 @@ function getSuperClasses (elem) {
   var generalizations = app.repository.getRelationshipsOf(elem, function (rel) {
     return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.source === elem)
   })
+
   return generalizations
 }
 
 /**
- * verif if elem has a Signal or Reception
+ * verif if elem (or one of inherited classes) has a Signal or Reception
  * @param {UMLClassifier} elem 
  */
 function hasAsyncMethod(elem) {
@@ -119,12 +120,23 @@ function hasAsyncMethod(elem) {
   if (elem.receptions.length) {
     return true
   }
-  for (var i = 0; i < elem.ownedElements.length; i++) {
+
+  var i
+
+  for (i = 0; i < elem.ownedElements.length; i++) {
     var element = elem.ownedElements[i]
     if (element instanceof type.UMLSignal) {
       return true
     }
   }
+
+  var superClasses = getSuperClasses(elem)
+  for (i = 0; i < superClasses.length; i++) {
+    if (hasAsyncMethod(superClasses[i].target)) {
+      return true
+    }
+  }
+
   return false
 }
 
@@ -719,7 +731,7 @@ class CppCodeGenerator {
       var docs = cppCodeGen.getDocuments(elem.documentation)
 
       codeWriter.writeLine(docs + modifierStr + 'enum ' + elem.name + ' {\n' +
-        idL  + elem.literals.map(lit => lit.name).join(',\n' + idL) +
+        idL  + elem.literals.map(lit => lit.name + (lit.documentation.length ? ' /* ' + lit.documentation + ' */' : '')).join(',\n' + idL) +
         '\n};')
       
       if (cppCodeGen.genOptions.useQt) {
@@ -757,6 +769,25 @@ class CppCodeGenerator {
         var genList = getSuperClasses(elem)
         var i
         var term = []
+
+        // arrange item that QtObject subclass be the first item in the list
+        if (genList.length > 1) {
+          // find the first QtObject subclass item
+          var index = -1
+          for (var i = 0; i < genList.length; i++) {
+            var currentItem = genList[i].target
+            if (hasAsyncMethod(currentItem) || (currentItem.name === 'QObject' && currentItem instanceof type.UMLPrimitiveType)) {
+              index = i
+              break
+            }
+          }
+
+          if (index > 0) {
+            var items = genList.splice(index, 1)
+            genList.unshift(items[0])
+          }
+        }
+
 
         for (i = 0; i < genList.length; i++) {
           var generalization = genList[i]
@@ -2347,7 +2378,7 @@ class CppCodeGenerator {
               if (isModifiable_QtObject || elem.reference instanceof type.UMLInterface){
                 // using a smart pointer according to the specified preference
                 if (this.genOptions.useQt) {
-                  _typeStr = 'QScopedPointer<' + _typeStr + ', QScopedPointerDeleteLater>'
+                  _typeStr = 'QScopedPointer<' + _typeStr + (isQtObject ? ', QScopedPointerDeleteLater' : '') + '>'
                   this.parseUnrecognizedType('QScopedPointer')
                 } else {
                   _typeStr = 'std::unique_ptr<' + _typeStr + '>'
