@@ -1584,7 +1584,8 @@ class CppCodeGenerator {
     var specifiers = []
 
     while (t_elem) {
-      if (t_elem instanceof type.UMLClass || t_elem instanceof type.UMLInterface) {
+      if (t_elem instanceof type.UMLClass || t_elem instanceof type.UMLInterface ||
+        t_elem instanceof type.UMLDataType || t_elem instanceof type.UMLPrimitiveType) {
         specifiers.push(t_elem)
       }
       t_elem = t_elem._parent
