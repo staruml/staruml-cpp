@@ -731,7 +731,7 @@ class CppCodeGenerator {
       var docs = cppCodeGen.getDocuments(elem.documentation)
 
       codeWriter.writeLine(docs + modifierStr + 'enum ' + elem.name + ' {\n' +
-        idL  + elem.literals.map(lit => lit.name + (lit.documentation.length ? ' /* ' + lit.documentation + ' */' : '')).join(',\n' + idL) +
+        idL  + elem.literals.map(lit => lit.name + (lit.documentation.length ? ' /*!< ' + lit.documentation + ' */' : '')).join(',\n' + idL) +
         '\n};')
       
       if (cppCodeGen.genOptions.useQt) {
@@ -1877,7 +1877,7 @@ class CppCodeGenerator {
     }
     var terms = this.getVariableDeclaration(elem, false, true)
 
-    return terms + ';' + (elem.documentation.length ? ' /* ' + elem.documentation + ' */' : '')
+    return terms + ';' + (elem.documentation.length ? ' /*!< ' + elem.documentation + ' */' : '')
   }
 
   /**
