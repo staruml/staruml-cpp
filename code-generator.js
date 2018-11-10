@@ -117,6 +117,10 @@ function hasAsyncMethod(elem) {
   if (!(elem instanceof type.UMLClassifier)) {
     return false
   }
+  // only on Qt framework
+  if (elem instanceof type.UMLPrimitiveType && elem.name == 'QObject') {
+    return true
+  }
   if (elem.receptions.length) {
     return true
   }
@@ -394,7 +398,10 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 		_constructor._parent = elem
 
 		builder.insert(_constructor)
-		builder.fieldInsert(elem, 'operations', _constructor)
+    builder.fieldInsert(elem, 'operations', _constructor)
+    
+    hasDefaultConstructor = true
+    needConstructor = false
 	}
   
   if (memberAttrs.length) {
@@ -418,6 +425,8 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
       
           builder.insert(_constructor)
           builder.fieldInsert(elem, 'operations', _constructor)
+
+          hasCopyConstructor = true
         }
           
         if (!hasAssignOp) {
@@ -447,6 +456,8 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 
           builder.insert(_operator)
           builder.fieldInsert(elem, 'operations', _operator)
+
+          hasAssignOp = true
         }
       }
 
@@ -458,6 +469,8 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 
         builder.insert(_destructor)
         builder.fieldInsert(elem, 'operations', _destructor)
+
+        hasDestructor = true
       }
     }
 
@@ -490,6 +503,8 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 
         builder.insert(_operator)
         builder.fieldInsert(elem, 'operations', _operator)
+
+        hasEqualOp = true
       }
 
       if (!hasDiffOp) {
@@ -519,6 +534,8 @@ function generateNecessaryOperations (elem, memberAttrs, cppCodeGen) {
 
         builder.insert(_operator)
         builder.fieldInsert(elem, 'operations', _operator)
+
+        hasDiffOp = true
       }
     }
   }
@@ -570,12 +587,12 @@ class CppCodeGenerator {
     }
   
     var doc = ''
-    if (app.project.getProject().name && app.project.getProject().name.length > 0) {
-      doc += '\nProject ' + app.project.getProject().name
-    }
-    if (app.project.getProject().company && app.project.getProject().company.length > 0) {
-      doc += '\nCompany ' + app.project.getProject().company
-    }
+    // if (app.project.getProject().name && app.project.getProject().name.length > 0) {
+    //   doc += '\nProject ' + app.project.getProject().name
+    // }
+    // if (app.project.getProject().company && app.project.getProject().company.length > 0) {
+    //   doc += '\nCompany ' + app.project.getProject().company
+    // }
     if (app.project.getProject().author && app.project.getProject().author.length > 0) {
       doc += '\n@author ' + app.project.getProject().author
     }
@@ -1024,11 +1041,7 @@ class CppCodeGenerator {
         }
       }
 
-      var docs = elem.name + ' implementation\n\n'
-      if (typeof elem.documentation === 'string') {
-        docs += elem.documentation
-      }
-      codeWriter.writeLine(cppCodeGen.getDocuments(docs))
+      codeWriter.writeLine('// ' + elem.name + ' implementation\n\n')
 
       // parsing class
       var methodList = cppCodeGen.classifyVisibility(elem.operations.slice(0))
@@ -1955,149 +1968,160 @@ class CppCodeGenerator {
     }
    
    // don't generate an abstract operation body
-    if (isCppBody && elem.isAbstract) {
+    if ((isCppBody && elem.isAbstract) || !elem.name.length) {
       return ''
     }
 
-    if (elem.name.length > 0) {
-      var docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name)
-      var i
-      var methodStr = ''
-      var returnType = ''
-      var returnTypeParam
-      var validReturnParam
-      // for operation stereotype
-      const isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
-      const isReadOnly = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'readOnly')
-      // for parameter stereotype
-    
-      // constructor and destructor verification
-      var isConstructor = elem.name === elem._parent.name // for constructor
-      var isDestructor = elem.name === ('~' + elem._parent.name) // for destructor
+    var docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name)
+    var i
+    var methodStr = ''
+    var returnType = ''
+    var returnTypeParam
+    var validReturnParam
+
+    var isInLine = false
+
+    // for operation stereotype
+    const isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
+    const isReadOnly = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'readOnly')
+    // for parameter stereotype
   
-      var inputParams = elem.parameters.filter(function (params) {
-        return (params.direction === 'in' || params.direction === 'inout' || params.direction === 'out')
+    // constructor and destructor verification
+    const isConstructor = elem.name === elem._parent.name // for constructor
+    const isDestructor = elem.name === ('~' + elem._parent.name) // for destructor
+
+    var inputParams = elem.parameters.filter(function (params) {
+      return (params.direction === 'in' || params.direction === 'inout' || params.direction === 'out')
+    })
+    var inputParamStrings = []
+    for (i = 0; i < inputParams.length; i++) {
+      var inputParam = inputParams[i]
+      inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody))
+      docs += '\n@param ' + inputParam.name + (inputParam.documentation.length ? ' : ' + inputParam.documentation : '')
+    }            
+
+    if (!(isConstructor || isDestructor)) {
+      returnTypeParam = elem.parameters.filter(function (params) {
+        return params.direction === 'return'
       })
-      var inputParamStrings = []
-      for (i = 0; i < inputParams.length; i++) {
-        var inputParam = inputParams[i]
-        inputParamStrings.push(this.getVariableDeclaration(inputParam, isCppBody))
-        docs += '\n@param ' + inputParam.name + (inputParam.documentation.length ? ' : ' + inputParam.documentation : '')
-      }            
+      
+      var stereotypeIdentifier = ' '
+
+      if (returnTypeParam.length > 0) {
+        validReturnParam = returnTypeParam[0]
+        returnType += this.getType(validReturnParam)
+
+        // for parameter stereotype
+        if ((validReturnParam.stereotype instanceof type.UMLModelElement ? validReturnParam.stereotype.name : validReturnParam.stereotype) === 'reference') {
+          stereotypeIdentifier = ' &'
+        }
+        
+        docs += '\n@return ' + returnType + (validReturnParam.documentation.length ? ' : ' + validReturnParam.documentation : '')
+      } else {
+        returnType = 'void'
+      }
+      
+      methodStr += returnType + stereotypeIdentifier
+    }
+
+    var templateParameter = this.getTemplateParameter(elem)
+
+    if (templateParameter.length > 0) {
+      methodStr = templateParameter + '\n' + methodStr
+    }
+
+    // if generation of body code is setted
+    if (isCppBody) {
+      var parentTemplateParameter = this.getTemplateParameter(elem._parent)
+
+      if (parentTemplateParameter.length > 0) {
+        methodStr = parentTemplateParameter + '\n' + methodStr
+      }
+      
+      var indentLine = this.getIndentString(this.genOptions)
+
+      if (!isFriend) {
+        methodStr += this.getContainersSpecifierStr(elem, false)
+      }
+
+      methodStr += elem.name
+      methodStr += '(' + inputParamStrings.join(', ') + ')'
+  
+      if (isReadOnly) {
+        methodStr += ' const'
+      }
+
+      var defaultContent = '{\n'
 
       if (!(isConstructor || isDestructor)) {
-        returnTypeParam = elem.parameters.filter(function (params) {
-          return params.direction === 'return'
-        })
-        
-        var stereotypeIdentifier = ' '
-
         if (returnTypeParam.length > 0) {
-          validReturnParam = returnTypeParam[0]
-          returnType += this.getType(validReturnParam)
-
-          // for parameter stereotype
-          if ((validReturnParam.stereotype instanceof type.UMLModelElement ? validReturnParam.stereotype.name : validReturnParam.stereotype) === 'reference') {
-            stereotypeIdentifier = ' &'
-          }
-          
-          docs += '\n@return ' + returnType + (validReturnParam.documentation.length ? ' : ' + validReturnParam.documentation : '')
-        } else {
-          returnType = 'void'
-        }
-        
-        methodStr += returnType + stereotypeIdentifier
-      }
-
-      var templateParameter = this.getTemplateParameter(elem)
-
-      if (templateParameter.length > 0) {
-        methodStr = templateParameter + '\n' + methodStr
-      }
-
-      // if generation of body code is setted
-      if (isCppBody) {
-        var parentTemplateParameter = this.getTemplateParameter(elem._parent)
-
-        if (parentTemplateParameter.length > 0) {
-          methodStr = parentTemplateParameter + '\n' + methodStr
-        }
-        
-        var indentLine = this.getIndentString(this.genOptions)
-
-        if (!isFriend) {
-          methodStr += this.getContainersSpecifierStr(elem, false)
-        }
-
-        methodStr += elem.name
-        methodStr += '(' + inputParamStrings.join(', ') + ')'
-		
-		if (isReadOnly) {
-			methodStr += ' const'
-		}
-
-        var defaultContent = '{\n'
-
-        if (!(isConstructor || isDestructor)) {
-          if (returnTypeParam.length > 0) {
-            var retParam_Name = validReturnParam.name
-            if (retParam_Name.length > 0) {
-                defaultContent += indentLine + this.getVariableDeclaration(validReturnParam, isCppBody) + ';\n'
-                defaultContent += '\n' + indentLine + 'return ' + retParam_Name + ';'
+          var retParam_Name = validReturnParam.name
+          if (retParam_Name.length > 0) {
+              defaultContent += indentLine + this.getVariableDeclaration(validReturnParam, isCppBody) + ';\n'
+              defaultContent += '\n' + indentLine + 'return ' + retParam_Name + ';'
+          } else {
+            if (returnType === 'boolean' || returnType === 'bool') {
+              defaultContent += indentLine + 'return false;'
+            } else if (returnType === 'int' || returnType === 'long' || returnType === 'short' || returnType === 'byte' ||
+                        returnType === 'unsigned int' || returnType === 'unsigned long' || returnType === 'unsigned short' || returnType === 'unsigned byte') {
+              defaultContent += indentLine + 'return 0;'
+            } else if (returnType === 'double' || returnType === 'float' ||
+                        returnType === 'unsigned double' || returnType === 'unsigned float') {
+              defaultContent += indentLine + 'return 0.0;'
+            } else if (returnType === 'char') {
+              defaultContent += indentLine + 'return \'0\';'
+            } else if (returnType === 'string' || returnType === 'String') {
+              defaultContent += indentLine + 'return "";'
+            } else if (returnType === 'void') {
+              defaultContent += indentLine + 'return;'
             } else {
-              if (returnType === 'boolean' || returnType === 'bool') {
-                defaultContent += indentLine + 'return false;'
-              } else if (returnType === 'int' || returnType === 'long' || returnType === 'short' || returnType === 'byte' ||
-                         returnType === 'unsigned int' || returnType === 'unsigned long' || returnType === 'unsigned short' || returnType === 'unsigned byte') {
-                defaultContent += indentLine + 'return 0;'
-              } else if (returnType === 'double' || returnType === 'float' ||
-                         returnType === 'unsigned double' || returnType === 'unsigned float') {
-                defaultContent += indentLine + 'return 0.0;'
-              } else if (returnType === 'char') {
-                defaultContent += indentLine + 'return \'0\';'
-              } else if (returnType === 'string' || returnType === 'String') {
-                defaultContent += indentLine + 'return "";'
-              } else if (returnType === 'void') {
-                defaultContent += indentLine + 'return;'
-              } else {
-                defaultContent += indentLine + 'return ' + returnType + '();'
-              }
+              defaultContent += indentLine + 'return ' + returnType + '();'
             }
           }
         }
-        defaultContent += '\n}'
+      }
+      defaultContent += '\n}'
 
-        methodStr += this.writeCustomCode(elem, defaultContent)
+      methodStr += this.writeCustomCode(elem, defaultContent)
 
-        // adding all constraint fo doc format
-        methodStr = this.getDocuments(getConstraint(elem, this)) + methodStr
-      } else {
+      // adding all constraint fo doc format
+      methodStr = this.getDocuments(getConstraint(elem, this)) + methodStr
+    } else {
 
-        methodStr += elem.name
-        methodStr += '(' + inputParamStrings.join(', ') + ')'
-		if (isReadOnly) { methodStr += ' const' }
+      methodStr += elem.name
+      methodStr += '(' + inputParamStrings.join(', ') + ')'
+      if (isReadOnly) { methodStr += ' const' }
 
-        // make pure virtual all operation of an UMLInterface
-        if (elem._parent instanceof type.UMLInterface || elem.isAbstract) {
+      // make pure virtual all operation of an UMLInterface
+      if (elem._parent instanceof type.UMLInterface || elem.isAbstract) {
+        // constructor can not define as virtual
+        if (!isConstructor) {
           methodStr = 'virtual ' + methodStr
+        }
+
+        // make inline the destructor of an interface instead pure virtual
+        if (isDestructor || isConstructor) {
+          isInLine = true
+        } else {
           methodStr += ' = 0'
+
           // set the elem and his parent in model to abstract (if not setted)
           elem._parent.isAbstract = true
           elem.isAbstract = true
         }
-        else if (isFriend) { methodStr = 'friend ' + methodStr }
-        else if (elem.isStatic) { methodStr = 'static ' + methodStr }
-        else if (elem.isLeaf) { methodStr += ' final' }
-        else if (isConstructor) { methodStr = /*'explicit ' +*/ methodStr }
-        else { methodStr = 'virtual ' + methodStr }
-		
-        methodStr += ';'
-    
-        methodStr = '\n' + this.getDocuments(docs) + methodStr
       }
-
-      return methodStr + '\n'
+      else if (isFriend) { methodStr = 'friend ' + methodStr }
+      else if (elem.isStatic) { methodStr = 'static ' + methodStr }
+      else if (elem.isLeaf) { methodStr += ' final' }
+      // else if (isConstructor) { methodStr = 'explicit ' + methodStr }
+      else { methodStr = 'virtual ' + methodStr }
+  
+      methodStr += isInLine ? ' {}' : ';'
+  
+      methodStr = '\n' + this.getDocuments(docs) + methodStr
     }
+
+    return methodStr + '\n'
   }
 
   /**
@@ -2108,78 +2132,81 @@ class CppCodeGenerator {
    * @return {Object} string
    */
   getSlot (elem, isCppBody) {
-    if (elem.name.length > 0) {
-      var docs = ''
-      var i
-      var methodStr = ''
-      var paramStr = ''
-    
-      // constructor and destructor verification
-      var isConstructor = elem.name === elem._parent.name // for constructor
-      var isDestructor = elem.name === ('~' + elem._parent.name) // for destructor
+    if (!elem.name.length) {
+      return ''
+    }
+
+    var docs = ''
+    var i
+    var methodStr = ''
+    var paramStr = ''
   
-      if (isConstructor || isDestructor) {
-        return ''
+    // constructor and destructor verification
+    const isConstructor = elem.name === elem._parent.name // for constructor
+    const isDestructor = elem.name === ('~' + elem._parent.name) // for destructor
+
+    if (isConstructor || isDestructor) {
+      return ''
+    }
+    
+    if (elem.signal !== null && elem.signal instanceof type.UMLSignal) {
+      var elemSignal = elem.signal
+      var params = []
+      for (i = 0; i < elemSignal.attributes.length; i++) {
+          var att = elemSignal.attributes[i]
+          params.push(this.getVariableDeclaration(att, true))
+      }
+      paramStr += params.join(', ')
+      
+      var specifier = this.getContainersSpecifierStr(elemSignal, false)
+
+      // sync reception name to the signal
+      elem.name = 'on' + firstUpperCase(elemSignal.name)
+      docs += '\nFrom signal: ' + specifier + elemSignal.name
+    }
+    docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name) + docs
+
+    // if generation of body code is setted
+    if (isCppBody) {
+      var parentTemplateParameter = this.getTemplateParameter(elem._parent)
+
+      if (parentTemplateParameter.length > 0) {
+        methodStr = parentTemplateParameter + '\n' + methodStr
       }
       
-      if (elem.signal !== null && elem.signal instanceof type.UMLSignal) {
-        var elemSignal = elem.signal
-        var params = []
-        for (i = 0; i < elemSignal.attributes.length; i++) {
-            var att = elemSignal.attributes[i]
-            params.push(this.getVariableDeclaration(att, true))
-        }
-        paramStr += params.join(', ')
-        
-        var specifier = this.getContainersSpecifierStr(elemSignal, false)
+      var specifier = this.getContainersSpecifierStr(elem, false)
 
-        // sync reception name to the signal
-        elem.name = 'on' + firstUpperCase(elemSignal.name)
-        docs += '\nFrom signal: ' + specifier + elemSignal.name
-      }
-      docs = '@brief ' + (elem.documentation.length ? elem.documentation : elem.name) + docs
+      methodStr += 'void ' + specifier + elem.name + '(' + paramStr + ')'
 
-      // if generation of body code is setted
-      if (isCppBody) {
-        var parentTemplateParameter = this.getTemplateParameter(elem._parent)
+      methodStr += this.writeCustomCode(elem, '{\n\n}')
 
-        if (parentTemplateParameter.length > 0) {
-          methodStr = parentTemplateParameter + '\n' + methodStr
-        }
-        
-        var specifier = this.getContainersSpecifierStr(elem, false)
+    } else {
 
-        methodStr += 'void ' + specifier + elem.name + '(' + paramStr + ')'
+      methodStr = 'void ' + elem.name + '(' + paramStr + ')'
 
-        methodStr += this.writeCustomCode(elem, '{\n\n}')
-
+      // make pure virtual all operation of an UMLInterface
+      if (elem._parent instanceof type.UMLInterface) {
+        methodStr = 'virtual ' + methodStr
+        methodStr += ' = 0'
+        // set the elem and his parent in model to abstract (if not setted)
+        elem._parent.isAbstract = true
+      } else if (elem.isStatic) {
+        methodStr = 'static ' + methodStr
+      } else if (elem.isLeaf) {
+        methodStr += ' final'
       } else {
-
-				methodStr = 'void ' + elem.name + '(' + paramStr + ');'
-
-        // make pure virtual all operation of an UMLInterface
-        if (elem._parent instanceof type.UMLInterface) {
-          methodStr = 'virtual ' + methodStr
-          methodStr += ' = 0'
-          // set the elem and his parent in model to abstract (if not setted)
-          elem._parent.isAbstract = true
-        } else if (elem.isStatic) {
-          methodStr = 'static ' + methodStr
-        } else if (elem.isLeaf) {
-          methodStr += ' final'
-        } else {
-          methodStr = 'virtual ' + methodStr
-        }
-        
-        if (this.genOptions.useQt) {
-          methodStr = 'Q_SLOT ' + methodStr
-        }
-
-        methodStr = '\n' + this.getDocuments(docs) + methodStr
+        methodStr = 'virtual ' + methodStr
+      }
+      
+      if (this.genOptions.useQt) {
+        methodStr = 'Q_SLOT ' + methodStr
       }
 
-      return methodStr + '\n'
+      methodStr = '\n' + this.getDocuments(docs) + methodStr
+      methodStr += ';'
     }
+
+    return methodStr + '\n'
   }
 
   /**
