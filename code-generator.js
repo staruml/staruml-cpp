@@ -561,6 +561,30 @@ class KeyContent {
 }
 
 /**
+ * Object to store any Header custum code
+ */
+class HeaderCustomCode {
+  /**
+   * @constructor
+   */
+  constructor() {
+    /** @member {string} Operation._id */
+    this.Id = ''
+
+    /** @member {string} */
+    this.FirstOuter = ''
+    /** @member {string} */
+    this.PrivateInner = ''
+    /** @member {string} */
+    this.PublicInner = ''
+    /** @member {string} */
+    this.ProtectedInner = ''
+    /** @member {string} */
+    this.LastOuter = ''
+  }
+}
+
+/**
 * Cpp Code Generator
 */
 class CppCodeGenerator {
@@ -690,6 +714,8 @@ class CppCodeGenerator {
     this.elemToGenerate = elem
     this.genOptions = options
     this.haveSR = false // Signal and/or Reception found in the class elem
+    this.haveMetaObject = false // defined by canHaveProperty() function
+    this.headerCustomCode = null // Custom header code by Developper
     this.opImplSaved = [] // Custom operations by Developper
     this.needComment = true // Explanation of saving Operation body
 
@@ -751,12 +777,8 @@ class CppCodeGenerator {
         idL  + elem.literals.map(lit => lit.name + (lit.documentation.length ? ' /*!< ' + lit.documentation + ' */' : '')).join(',\n' + idL) +
         '\n};')
       
-      if (cppCodeGen.genOptions.useQt) {
-        if (elem._parent instanceof type.UMLClass || elem._parent instanceof type.UMLInterface) {
-          codeWriter.writeLine('Q_ENUM(' + elem.name + ')')
-        } else {
-          codeWriter.writeLine('Q_DECLARE_METATYPE(' + cppCodeGen.getContainersSpecifierStr(elem) + elem.name + ')')
-        }
+      if (cppCodeGen.genOptions.useQt && (elem._parent instanceof type.UMLClass || elem._parent instanceof type.UMLInterface)) {
+        codeWriter.writeLine('Q_ENUM(' + elem.name + ')')
       }
     }
 
@@ -772,7 +794,9 @@ class CppCodeGenerator {
             codeWriter.writeLine(cppCodeGen.getMethod(item, false))
           } else if (item instanceof type.UMLReception) {
             codeWriter.writeLine(cppCodeGen.getSlot(item, false))
-          } else if (item instanceof type.UMLClass) {
+          } else if (item instanceof type.UMLClass ||
+            item instanceof type.UMLInterface ||
+            (item instanceof type.UMLDataType && !(item instanceof type.UMLEnumeration))) {
             writeClassHeader(codeWriter, item, cppCodeGen)
           } else if (item instanceof type.UMLEnumeration) {
             writeEnumeration(codeWriter, item, cppCodeGen)
@@ -878,9 +902,6 @@ class CppCodeGenerator {
           // for variable
           var variableStr = cppCodeGen.getType(attr, false) + ' ' + attr.name
           
-          // for member
-          const memberStr = ' MEMBER m_' + attr.name
-          
           // for getter & setter
           var getterStr = '', hasGetter = false
           var setterStr = '', hasSetter = false
@@ -903,6 +924,11 @@ class CppCodeGenerator {
             }
           }
           
+          // ignore all properties without getter
+          if (!hasGetter) {
+            continue
+          }
+
           // ignore a statement like this "Q_PROPERTY(std::unique_ptr<type> propertyName MEMBER attrName)"
           if (cppCodeGen.genOptions.useSmartPtr && attr.multiplicity === '0..1' && !hasGetter) { continue }
 
@@ -918,7 +944,7 @@ class CppCodeGenerator {
           }
           
           // writing property
-          codeWriter.writeLine('Q_PROPERTY(' + variableStr + (hasGetter ? getterStr : memberStr) + ((!elem.isReadOnly && hasSetter) ? (setterStr + signalStr) : '') + ')')
+          codeWriter.writeLine('Q_PROPERTY(' + variableStr + getterStr + ((!elem.isReadOnly && hasSetter) ? (setterStr + signalStr) : '') + ')')
         }
       }
 
@@ -958,10 +984,11 @@ class CppCodeGenerator {
       if (elem.isFinalSpecialization === true || elem.isLeaf === true) {
         finalModifier = ' final '
       }
+
       // doc
-      var docs = cppCodeGen.getDocuments(elem.documentation)
-      if (docs.length > 0) {
-          codeWriter.writeLine(docs)
+      if (elem.documentation.length > 0) {
+        const docs = cppCodeGen.getDocuments('@brief ' + elem.documentation)
+        codeWriter.writeLine(docs)
       }
 
       var templatePart = cppCodeGen.getTemplateParameter(elem)
@@ -969,30 +996,42 @@ class CppCodeGenerator {
         codeWriter.writeLine(templatePart)
       }
 
-      codeWriter.writeLine('class ' + elem.name + finalModifier + writeInheritance(elem) + '\n{')
+      const typeStr = (elem instanceof type.UMLDataType && !(elem instanceof type.UMLEnumeration)) ? 'struct ' : 'class '
+
+      codeWriter.writeLine(typeStr + elem.name + finalModifier + writeInheritance(elem) + '\n{')
+
+      codeWriter.indent()
       if (cppCodeGen.canHaveProperty(elem)) {
-        codeWriter.indent()
+        cppCodeGen.haveMetaObject = true
         if (cppCodeGen.haveSR) {
           codeWriter.writeLine('Q_OBJECT')
         } else {
           codeWriter.writeLine('Q_GADGET')
         }
         writeProperties(codeWriter, elem, memberAttr, cppCodeGen)
+      }
+      codeWriter.writeLine(cppCodeGen.writeHeaderCustomCode(elem, 'PV_I', ''))
+      codeWriter.writeLine()
+      codeWriter.outdent()
 
-        codeWriter.outdent()
-      }
+      codeWriter.writeLine('public: ')
+      codeWriter.indent()
+      codeWriter.writeLine(cppCodeGen.writeHeaderCustomCode(elem, 'PB_I', ''))
+      codeWriter.writeLine()
       if (classfiedAttributes._public.length > 0) {
-        codeWriter.writeLine('public: ')
-        codeWriter.indent()
         write(classfiedAttributes._public)
-        codeWriter.outdent()
       }
+      codeWriter.outdent()
+
+      codeWriter.writeLine('protected: ')
+      codeWriter.indent()
+      codeWriter.writeLine(cppCodeGen.writeHeaderCustomCode(elem, 'PT_I', ''))
+      codeWriter.writeLine()
       if (classfiedAttributes._protected.length > 0) {
-        codeWriter.writeLine('protected: ')
-        codeWriter.indent()
         write(classfiedAttributes._protected)
-        codeWriter.outdent()
       }
+      codeWriter.outdent()
+    
       if (classfiedAttributes._private.length > 0) {
         codeWriter.writeLine('private: ')
         codeWriter.indent()
@@ -1092,14 +1131,14 @@ class CppCodeGenerator {
         oldFile += '.' + _CPP_CODE_GEN_H
         try {
           fs.accessSync(oldFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-          this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
+          this.readHeaderCustomCode(fs.readFileSync(oldFile, 'utf8'))
           this.needComment = false
           fs.unlinkSync(oldFile)
         } catch (err) {}
       } else {
         try {
           fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-          this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
+          this.readHeaderCustomCode(fs.readFileSync(file, 'utf8'))
           this.needComment = false
           fs.unlinkSync(file)
         } catch (err) {}
@@ -1142,6 +1181,11 @@ class CppCodeGenerator {
         * interface will convert to class which only contains virtual method and member variable.
         */
         // generate interface header ONLY elem_name.h
+        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.appendFileSync(this.logPath, data, 'utf8')
+      } else if (elem instanceof type.UMLDataType && !(elem instanceof type.UMLEnumeration)) {
+        this.haveSR = hasAsyncMethod(elem) // Signal and/or Reception found in the class elem
+        // generate data type header ONLY elem_name.h
         fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
         fs.appendFileSync(this.logPath, data, 'utf8')
       } else if (elem instanceof type.UMLEnumeration) {
@@ -1208,6 +1252,111 @@ class CppCodeGenerator {
       return
     }
     this.notRecType.push(typeName)
+  }
+
+  /**
+   * Save all header already declared by the Developper
+   * 
+   * @param {string} data : the file content
+   */
+  readHeaderCustomCode (data) {
+    if (!data.length) {
+      return
+    }
+    // transform this data to row array
+    var rowContents = data.split('\n')
+    var cell = []
+    var i
+
+    var _idFound = false
+
+    for (i = 0; i < rowContents.length; i++) {
+      // continue if no information
+      if (rowContents[i].length === 0) {
+        continue
+      }
+
+      cell = rowContents[i].split(' ')
+
+      if (!_idFound) {
+        // catch the id
+        if (cell.length < 3 || cell[0] !== '//<<' || cell[2] !== '>>') {
+          continue
+        }
+        
+        if (cell[1] !== this.elemToGenerate._id) {
+          break
+        }
+
+        _idFound = true
+
+        this.headerCustomCode = new HeaderCustomCode()
+        this.headerCustomCode.Id = cell[1]
+      }
+
+      // catch the begin index
+      if (cell.length < 2 || cell[0] !== '//<_') {
+        continue
+      }
+      var operationBody = new KeyContent()
+
+      operationBody.Key = cell[1]
+      
+      cell = rowContents[++i].split(' ')
+
+      while (cell[0] !== '//_>' && (i < rowContents.length)) {
+        // for Content integrity
+        operationBody.Content += (!operationBody.Content.length ? '' : '\n') + rowContents[i]
+        cell = rowContents[++i].split(' ')
+      }
+      
+      if (operationBody.Key === 'F_O') {
+        this.headerCustomCode.FirstOuter += operationBody.Content
+      } else if (operationBody.Key === 'L_O') {
+        this.headerCustomCode.LastOuter += operationBody.Content
+      } else if (operationBody.Key === 'PV_I') {
+        this.headerCustomCode.PrivateInner += operationBody.Content
+      } else if (operationBody.Key === 'PB_I') {
+        this.headerCustomCode.PublicInner += operationBody.Content
+      } else if (operationBody.Key === 'PT_I') {
+        this.headerCustomCode.ProtectedInner += operationBody.Content
+      }
+    }
+  }
+
+  /**
+   * Write all developer custom code in the file
+   * 
+   * @param {UMLModelElement} elem
+   * @param {string} index
+   * @param {string} defaultContent
+   * @return {string} customCode
+   */
+  writeHeaderCustomCode (elem, index, defaultContent) {
+    var customCode = ''
+    var _contents = ''
+    // get the content of an identified index
+    if (this.headerCustomCode !== null && this.headerCustomCode.Id === elem._id) {
+      if (index === 'F_O') {
+        _contents = this.headerCustomCode.FirstOuter
+      } else if (index === 'L_O') {
+        _contents = this.headerCustomCode.LastOuter
+      } else if (index === 'PV_I') {
+        _contents = this.headerCustomCode.PrivateInner
+      } else if (index === 'PB_I') {
+        _contents = this.headerCustomCode.PublicInner
+      } else if (index === 'PT_I') {
+        _contents = this.headerCustomCode.ProtectedInner
+      }
+    }
+    // write an custom code
+    customCode += '\n//<_ ' + index + '\n'
+
+    customCode += _contents.length > 0 ? _contents : defaultContent
+
+    customCode += '\n//_>'
+
+    return customCode
   }
 
   /**
@@ -1475,6 +1624,8 @@ class CppCodeGenerator {
     var headerString = namespaces.toUpperCase() + elem.name.toUpperCase() + '_H'
     var codeWriter = new codegen.CodeWriter(this.getIndentString(options))
 
+    // WRITING....
+
     codeWriter.writeLine(copyrightHeader)
     codeWriter.writeLine()
     codeWriter.writeLine('#ifndef ' + headerString)
@@ -1484,22 +1635,29 @@ class CppCodeGenerator {
     var classDeclaration = writeHeaderNamespaces(elem, this, funct)
     var includePart = getIncludePart(elem, this)
 
+    // for classifier id
+    codeWriter.writeLine('//<< ' + elem._id + ' >>')
+    codeWriter.writeLine()
+
     if (includePart.length > 0) {
         codeWriter.writeLine(includePart)
     }
     
     if (this.needComment) {
-      codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//< op._id" AND "//>"')
+      codeWriter.writeLine('// DON\'T REMOVE ALL LINE CONTAINS "//<_ LABEL" AND "//_>"')
       codeWriter.writeLine('// THEY HELP YOU TO SAVE ALL CHANGE IN THE CURRENT OPERATION FOR THE NEXT CODE GENERATION')
       codeWriter.writeLine()
     }
 
-    codeWriter.writeLine(this.writeCustomCode(elem, ''))
+    // First outer
+    codeWriter.writeLine(this.writeHeaderCustomCode(elem, 'F_O', ''))
     codeWriter.writeLine()
 
     codeWriter.writeLine(classDeclaration)
-
+    // Last outer
+    codeWriter.writeLine(this.writeHeaderCustomCode(elem, 'L_O', ''))
     codeWriter.writeLine()
+
     codeWriter.writeLine('#endif // ' + headerString)
 
     return codeWriter.getData()
@@ -1619,15 +1777,6 @@ class CppCodeGenerator {
       var specifiers = []
       var templateSpecifier = ''
 
-      // var t_elem = elem._parent
-      // while (t_elem instanceof type.UMLClass) {
-      //   if (cppCodeGen.getTemplateParameter(t_elem).length > 0) {
-      //     templateSpecifier = cppCodeGen.getTemplateParameterNames(t_elem)
-      //   }
-      //   specifiers.push(t_elem.name + templateSpecifier)
-      //   t_elem = t_elem._parent
-      // }
-
       var anchestorsClass = cppCodeGen.getAnchestorsClass(elem)
 
       for (var i = 0; i < anchestorsClass.length; i++) {
@@ -1707,7 +1856,7 @@ class CppCodeGenerator {
     var writeDeclaration = (elem, codeWriter, elemTab) => {
       if ((elem instanceof type.UMLClass || elem instanceof type.UMLPrimitiveType || elem instanceof type.UMLInterface) && elemTab.includes(elem)) {
         codeWriter.writeLine('class ' + elem.name + ';')
-      } else if ((elem instanceof type.UMLDataType) && elemTab.includes(elem)) {
+      } else if ((elem instanceof type.UMLDataType && !(elem instanceof type.UMLEnumeration)) && elemTab.includes(elem)) {
         codeWriter.writeLine('struct ' + elem.name + ';')
       } else if (isUseful(elem, elemTab)) {
         codeWriter.writeLine('namespace ' + elem.name + ' {')
@@ -1922,7 +2071,6 @@ class CppCodeGenerator {
       if (preconditions && preconditions.length > 0) {
 
         preconditions.forEach((precondition) => {
-          app.toast.info('precondition name = ' + precondition.name)
           specification = precondition.specification
 
           if (specification && specification.length > 0) {
@@ -2113,8 +2261,12 @@ class CppCodeGenerator {
       else if (isFriend) { methodStr = 'friend ' + methodStr }
       else if (elem.isStatic) { methodStr = 'static ' + methodStr }
       else if (elem.isLeaf) { methodStr += ' final' }
-      // else if (isConstructor) { methodStr = 'explicit ' + methodStr }
+      else if (isConstructor) { /*methodStr = 'explicit ' + methodStr*/ }
       else { methodStr = 'virtual ' + methodStr }
+
+      // if ((this.haveMetaObject && this.genOptions.useQt) && !isDestructor) {
+      //   methodStr = 'Q_INVOKABLE ' + methodStr
+      // }
   
       methodStr += isInLine ? ' {}' : ';'
   
