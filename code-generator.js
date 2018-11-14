@@ -1240,7 +1240,8 @@ class CppCodeGenerator {
   }
 
   parseUnrecognizedType (typeExp) {
-    if (!typeExp.length) {
+    // ignore   type1::type2 because type1 could be a package or a classifier
+    if (!typeExp.length || typeExp.split('::').length > 1) {
       return
     }
     
@@ -1500,7 +1501,7 @@ class CppCodeGenerator {
       var memberString = ''
       var dependenciesString = ''
 
-      // incluce the QObject item if Qt framework is checked
+      // include the QObject item if Qt framework is checked
       if (cppCodeGen.genOptions.useQt) {
         // find if QObject is already exist
         var qobjectFound = false
@@ -2601,6 +2602,7 @@ class CppCodeGenerator {
 
       if (_isRecognizedType) {
 
+        /** IT IS NOT USEFULL FOR CODE GENERATION
         // if all below statement is true :
         // create a dependency of elem anchestor class and elem type
         if (!_likePointer && !(elem instanceof type.UMLAssociationEnd) && this.genOptions.implementation) {
@@ -2629,7 +2631,7 @@ class CppCodeGenerator {
             }
           }
         }
-
+        */
         this.parseElemType(_elemType, _likePointer)
       } else {
         this.parseUnrecognizedType(_elemType)
