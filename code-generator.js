@@ -110,6 +110,127 @@ function getSuperClasses (elem) {
 }
 
 /**
+ * get all sub class / interface from element
+ *
+ * @param {Object} elem
+ * @return {Object} list
+ */
+function getSubClasses (elem) {
+  var specializations = app.repository.getRelationshipsOf(elem, function (rel) {
+    return ((rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization) && rel.target === elem)
+  })
+
+  return specializations
+}
+
+/**
+ * check if an operation is reimplemented
+ * @param {UMLOperation || UMLReception} checkedOperation operation to find
+ * @param {UMLClassifier} parentClass next parent class
+ */
+function isReimplemented(checkedOperation, parentClass = null) {
+  var compareOps = (op1, op2) => {
+    var getInputParams = (operation) => {
+      var inputParams = operation.parameters.filter(function (params) {
+        return (params.direction === 'in' || params.direction === 'inout' || params.direction === 'out')
+      })
+
+      return inputParams
+    }
+
+    var getReturnParam = (operation) => {
+      var returnParam = operation.parameters.filter(function (params) {
+        return params.direction === 'return'
+      })
+
+      return returnParam
+    }
+
+    if (op1.name !== op2.name || op1.parameters.length !== op2.parameters.length) {
+      return false
+    }
+
+    // for return param
+    var op1Param = getReturnParam(op1)
+    var op2Param = getReturnParam(op2)
+
+    if (op1Param.type !== op2Param.type ||
+      op1Param.multiplicity !== op2Param.multiplicity ||
+      op1Param.isReadOnly !== op2Param.isReadOnly /* ||
+      op1Param.isUnique !== op2Param.isUnique ||
+      op1Param.isOrdered !== op2Param.isOrdered */) {
+      return false
+    }
+
+    // for input params
+    var op1IP = getInputParams(op1)
+    var op2IP = getInputParams(op2)
+
+    for (var i = 0; i < op1IP.length; i++) {
+      op1Param = op1IP[i]
+      op2Param = op2IP[i]
+      
+      if (op1Param.name !== op2Param.name ||
+        op1Param.type !== op2Param.type ||
+        op1Param.multiplicity !== op2Param.multiplicity ||
+        op1Param.isReadOnly !== op2Param.isReadOnly /* ||
+        op1Param.isUnique !== op2Param.isUnique ||
+        op1Param.isOrdered !== op2Param.isOrdered */) {
+        return false
+      }
+    }
+    
+    return true
+  }
+
+  var compareSlots = (slot1, slot2) => {
+    return slot1.name === slot2.name
+  }
+
+  if (parentClass === null) {
+    parentClass = checkedOperation._parent
+  }
+
+  var subclasses = getSubClasses(parentClass)
+
+  if (!subclasses.length) {
+    return false;
+  }
+
+  for (var sub = 0; sub < subclasses.length; sub++) {
+    const currentSubClass = subclasses[sub].source
+    if (checkedOperation instanceof type.UMLOperation) {
+      for (var sub_op = 0; sub_op < currentSubClass.operations.length; sub_op++) {
+        const subOperation = currentSubClass.operations[sub_op]
+
+        // the checkedOperation is reimplemented if the below statement is true
+        if (compareOps(checkedOperation, subOperation)) {
+          return true
+        }
+      }
+    } else if (checkedOperation instanceof type.UMLReception) {
+      for (var sub_op = 0; sub_op < currentSubClass.receptions.length; sub_op++) {
+        const subOperation = currentSubClass.receptions[sub_op]
+
+        // the checkedOperation is reimplemented if the below statement is true
+        if (compareSlots(checkedOperation, subOperation)) {
+          return true
+        }
+      }
+    }
+  }
+
+  for (var sub = 0; sub < subclasses.length; sub++) {
+    const currentSubClass = subclasses[sub].source
+    if (isReimplemented(checkedOperation, currentSubClass)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
  * verif if elem (or one of inherited classes) has a Signal or Reception
  * @param {UMLClassifier} elem 
  */
@@ -2263,7 +2384,7 @@ class CppCodeGenerator {
       else if (elem.isStatic) { methodStr = 'static ' + methodStr }
       else if (elem.isLeaf) { methodStr += ' final' }
       else if (isConstructor) { /*methodStr = 'explicit ' + methodStr*/ }
-      else { methodStr = 'virtual ' + methodStr }
+      else if (isReimplemented(elem) || (isDestructor && getSubClasses(elem._parent).length)) { methodStr = 'virtual ' + methodStr }
 
       // if ((this.haveMetaObject && this.genOptions.useQt) && !isDestructor) {
       //   methodStr = 'Q_INVOKABLE ' + methodStr
@@ -2343,13 +2464,9 @@ class CppCodeGenerator {
         methodStr += ' = 0'
         // set the elem and his parent in model to abstract (if not setted)
         elem._parent.isAbstract = true
-      } else if (elem.isStatic) {
-        methodStr = 'static ' + methodStr
-      } else if (elem.isLeaf) {
-        methodStr += ' final'
-      } else {
-        methodStr = 'virtual ' + methodStr
-      }
+      } else if (elem.isStatic) { methodStr = 'static ' + methodStr }
+      else if (elem.isLeaf) { methodStr += ' final' }
+      else if (isReimplemented(elem)) { methodStr = 'virtual ' + methodStr }
       
       if (this.genOptions.useQt) {
         methodStr = 'Q_SLOT ' + methodStr
@@ -2411,9 +2528,9 @@ class CppCodeGenerator {
     if (elem.isStatic === true) {
       modifiers.push('static')
     }
-    if (elem.isReadOnly === true) {
-      modifiers.push('const')
-    }
+    // if (elem.isReadOnly === true) {
+    //   modifiers.push('const')
+    // }
     if (elem.isAbstract === true) {
       modifiers.push('virtual')
     }
@@ -2643,6 +2760,9 @@ class CppCodeGenerator {
 
     if (_modifiers.length > 0) {
       _typeStr = _modifiers.join(' ') + ' ' + _typeStr
+    }
+    if (elem.isReadOnly) {
+      _typeStr += ' const'
     }
 
     return _typeStr
