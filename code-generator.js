@@ -1224,7 +1224,7 @@ class CppCodeGenerator {
       }
     }
 
-    var fullPath, file, oldFile
+    var fullPath, headerFile, bodyFile, oldFile
 
     // Package -> as namespace or not
     if (elem instanceof type.UMLPackage) {
@@ -1243,8 +1243,8 @@ class CppCodeGenerator {
       // nothing to generate because the UMLPrimitiveType is taken for an element of the system
     } else {
       // for writing file
-      file = getFilePath(_CPP_CODE_GEN_H)
-      var data = elem._id + ' => ' + basePath + (this.genOptions.windows ? '\\' : '/') + elem.name + '\n'
+      headerFile = getFilePath(_CPP_CODE_GEN_H)
+      const data = elem._id + ' => ' + basePath + (this.genOptions.windows ? '\\' : '/') + elem.name + '\n'
 
       // get the old file (path) of each element
       oldFile = this.getElemFilePath(elem)
@@ -1252,66 +1252,71 @@ class CppCodeGenerator {
         oldFile += '.' + _CPP_CODE_GEN_H
         try {
           fs.accessSync(oldFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-          this.readHeaderCustomCode(fs.readFileSync(oldFile, 'utf8'))
+          const _contents = fs.readFileSync(oldFile, 'utf8')
+          this.readHeaderCustomCode(_contents)
+          this.getAllCustomOpImpl(_contents)
           this.needComment = false
           fs.unlinkSync(oldFile)
         } catch (err) {}
       } else {
         try {
-          fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-          this.readHeaderCustomCode(fs.readFileSync(file, 'utf8'))
+          fs.accessSync(headerFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+          const _contents = fs.readFileSync(headerFile, 'utf8')
+          this.readHeaderCustomCode(_contents)
+          this.getAllCustomOpImpl(_contents)
           this.needComment = false
-          fs.unlinkSync(file)
+          fs.unlinkSync(headerFile)
         } catch (err) {}
       }
 
       if (elem instanceof type.UMLClass) {
         this.haveSR = hasAsyncMethod(elem) // Signal and/or Reception found in the class elem
     
-        // generate class header elem_name.h
-        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
-        fs.appendFileSync(this.logPath, data, 'utf8')
-        
         if (options.genCpp) {
-          file = getFilePath(_CPP_CODE_GEN_CPP)
+          bodyFile = getFilePath(_CPP_CODE_GEN_CPP)
 
           oldFile = this.getElemFilePath(elem)
           if (oldFile !== null) {
             oldFile += '.' + _CPP_CODE_GEN_CPP
             try {
               fs.accessSync(oldFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-              this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
+              this.getAllCustomOpImpl(fs.readFileSync(oldFile, 'utf8'))
               this.needComment = false
               fs.unlinkSync(oldFile)
             } catch (err) {}
           } else {
             try {
-              fs.accessSync(file, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
-              this.opImplSaved = this.getAllCustomOpImpl(fs.readFileSync(file, 'utf8'))
+              fs.accessSync(bodyFile, fs.constants.F_OK | fs.constants.R_OK | fs.constants.W_OK)
+              this.getAllCustomOpImpl(fs.readFileSync(bodyFile, 'utf8'))
               this.needComment = false
-              fs.unlinkSync(file)
+              fs.unlinkSync(bodyFile)
             } catch (err) {}
           }
     
           // generate class cpp elem_name.cpp
-          fs.writeFileSync(file, this.writeBodySkeletonCode(elem, options, writeClassBody))
+          fs.writeFileSync(bodyFile, this.writeBodySkeletonCode(elem, options, writeClassBody))
         }
+
+        // generate class header elem_name.h
+        fs.writeFileSync(headerFile, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.appendFileSync(this.logPath, data, 'utf8')
+        
       } else if (elem instanceof type.UMLInterface) {
         this.haveSR = hasAsyncMethod(elem) // Signal and/or Reception found in the class elem
         /*
         * interface will convert to class which only contains virtual method and member variable.
         */
         // generate interface header ONLY elem_name.h
-        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.writeFileSync(headerFile, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
         fs.appendFileSync(this.logPath, data, 'utf8')
       } else if (elem instanceof type.UMLDataType && !(elem instanceof type.UMLEnumeration)) {
         this.haveSR = hasAsyncMethod(elem) // Signal and/or Reception found in the class elem
         // generate data type header ONLY elem_name.h
-        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        fs.writeFileSync(headerFile, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
         fs.appendFileSync(this.logPath, data, 'utf8')
       } else if (elem instanceof type.UMLEnumeration) {
         // generate enumeration header ONLY elem_name.h
-        fs.writeFileSync(file, this.writeHeaderSkeletonCode(elem, options, writeEnumeration))
+        fs.writeFileSync(headerFile, this.writeHeaderSkeletonCode(elem, options, writeEnumeration))
         fs.appendFileSync(this.logPath, data, 'utf8')
       // } else if (elem instanceof type.UMLSignal) {
       //   // generate signal header ONLY elem_name.h
@@ -1488,10 +1493,8 @@ class CppCodeGenerator {
    * @return {Array.<Object>}
    */
   getAllCustomOpImpl (data) {
-    var operationBodies = []
-
     if (!data.length) {
-      return operationBodies
+      return
     }
     // transform this data to row array
     var rowContents = data.split('\n')
@@ -1519,10 +1522,8 @@ class CppCodeGenerator {
         operationBody.Content += (!operationBody.Content.length ? '' : '\n') + rowContents[i]
         cell = rowContents[++i].split(' ')
       }
-      operationBodies.push(operationBody)
+      this.opImplSaved.push(operationBody)
     }
-
-    return operationBodies
   }
 
   /**
@@ -2238,7 +2239,7 @@ class CppCodeGenerator {
     }
    
    // don't generate an abstract operation body
-    if ((isCppBody && elem.isAbstract) || !elem.name.length) {
+    if ((isCppBody && (elem.isAbstract || elem.isQuery)) || !elem.name.length) {
       return ''
     }
 
@@ -2248,8 +2249,6 @@ class CppCodeGenerator {
     var returnType = ''
     var returnTypeParam
     var validReturnParam
-
-    var isInLine = false
 
     // for operation stereotype
     const isFriend = ((elem.stereotype instanceof type.UMLModelElement ? elem.stereotype.name : elem.stereotype) === 'friend')
@@ -2301,7 +2300,7 @@ class CppCodeGenerator {
     }
 
     // if generation of body code is setted
-    if (isCppBody) {
+    if (isCppBody && !elem.isQuery) {
       var parentTemplateParameter = this.getTemplateParameter(elem._parent)
 
       if (parentTemplateParameter.length > 0) {
@@ -2320,6 +2319,8 @@ class CppCodeGenerator {
       if (isReadOnly) {
         methodStr += ' const'
       }
+
+      //! BEGIN for operation body content
 
       var defaultContent = '{\n'
 
@@ -2354,6 +2355,8 @@ class CppCodeGenerator {
 
       methodStr += this.writeCustomCode(elem, defaultContent)
 
+      //! END for operation body content
+
       // adding all constraint fo doc format
       methodStr = this.getDocuments(getConstraint(elem, this)) + methodStr
     } else {
@@ -2371,27 +2374,69 @@ class CppCodeGenerator {
 
         // make inline the destructor of an interface instead pure virtual
         if (isDestructor || isConstructor) {
-          isInLine = true
+          methodStr += ' {}'
         } else {
-          methodStr += ' = 0'
+          methodStr += ' = 0;'
 
           // set the elem and his parent in model to abstract (if not setted)
           elem._parent.isAbstract = true
           elem.isAbstract = true
         }
-      }
-      else if (isFriend) { methodStr = 'friend ' + methodStr }
-      else if (elem.isStatic) { methodStr = 'static ' + methodStr }
-      else if (elem.isLeaf) { methodStr += ' final' }
-      else if (isConstructor) { /*methodStr = 'explicit ' + methodStr*/ }
-      else if (isReimplemented(elem) || (isDestructor && getSubClasses(elem._parent).length)) { methodStr = 'virtual ' + methodStr }
+      } else {
+        if (elem.isQuery) {
+          methodStr = 'inline ' + methodStr
+          
+          //! BEGIN for operation body content
 
-      // if ((this.haveMetaObject && this.genOptions.useQt) && !isDestructor) {
-      //   methodStr = 'Q_INVOKABLE ' + methodStr
-      // }
-  
-      methodStr += isInLine ? ' {}' : ';'
-  
+          var defaultContent = '{\n'
+
+          if (!(isConstructor || isDestructor)) {
+            if (returnTypeParam.length > 0) {
+              var retParam_Name = validReturnParam.name
+              if (retParam_Name.length > 0) {
+                  defaultContent += indentLine + this.getVariableDeclaration(validReturnParam, isCppBody) + ';\n'
+                  defaultContent += '\n' + indentLine + 'return ' + retParam_Name + ';'
+              } else {
+                if (returnType === 'boolean' || returnType === 'bool') {
+                  defaultContent += indentLine + 'return false;'
+                } else if (returnType === 'int' || returnType === 'long' || returnType === 'short' || returnType === 'byte' ||
+                            returnType === 'unsigned int' || returnType === 'unsigned long' || returnType === 'unsigned short' || returnType === 'unsigned byte') {
+                  defaultContent += indentLine + 'return 0;'
+                } else if (returnType === 'double' || returnType === 'float' ||
+                            returnType === 'unsigned double' || returnType === 'unsigned float') {
+                  defaultContent += indentLine + 'return 0.0;'
+                } else if (returnType === 'char') {
+                  defaultContent += indentLine + 'return \'0\';'
+                } else if (returnType === 'string' || returnType === 'String') {
+                  defaultContent += indentLine + 'return "";'
+                } else if (returnType === 'void') {
+                  defaultContent += indentLine + 'return;'
+                } else {
+                  defaultContent += indentLine + 'return ' + returnType + '();'
+                }
+              }
+            }
+          }
+          defaultContent += '\n}'
+
+          methodStr += this.writeCustomCode(elem, defaultContent)
+
+          //! END for operation body content
+        }
+
+        if (isFriend) { methodStr = 'friend ' + methodStr }
+        else if (elem.isStatic) { methodStr = 'static ' + methodStr }
+        else if (elem.isLeaf) { methodStr += ' final' }
+        else if (isConstructor) { /*methodStr = 'explicit ' + methodStr*/ }
+        else if (!elem.isQuery && (isReimplemented(elem) || (isDestructor && getSubClasses(elem._parent).length))) { methodStr = 'virtual ' + methodStr }
+
+        // if ((this.haveMetaObject && this.genOptions.useQt) && !isDestructor) {
+        //   methodStr = 'Q_INVOKABLE ' + methodStr
+        // }
+    
+        if (!elem.isQuery) { methodStr += ';' }
+      }
+    
       methodStr = '\n' + this.getDocuments(docs) + methodStr
     }
 
