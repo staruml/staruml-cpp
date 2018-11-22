@@ -2361,12 +2361,14 @@ class CppCodeGenerator {
       methodStr = this.getDocuments(getConstraint(elem, this)) + methodStr
     } else {
 
+      const _parentIsInterface = (elem._parent instanceof type.UMLInterface)
+      var isDeclaration = true
+
       methodStr += elem.name
       methodStr += '(' + inputParamStrings.join(', ') + ')'
       if (isReadOnly) { methodStr += ' const' }
 
-      // make pure virtual all operation of an UMLInterface
-      if (elem._parent instanceof type.UMLInterface || elem.isAbstract) {
+      if (elem.isAbstract) {
         // constructor can not define as virtual
         if (!isConstructor) {
           methodStr = 'virtual ' + methodStr
@@ -2382,8 +2384,11 @@ class CppCodeGenerator {
           elem._parent.isAbstract = true
           elem.isAbstract = true
         }
+
+        isDeclaration = false
+
       } else {
-        if (elem.isQuery) {
+        if (elem.isQuery && !_parentIsInterface) {
           methodStr = 'inline ' + methodStr
           
           //! BEGIN for operation body content
@@ -2422,10 +2427,35 @@ class CppCodeGenerator {
           methodStr += this.writeCustomCode(elem, defaultContent)
 
           //! END for operation body content
+        
+          isDeclaration = false
+
         }
 
         if (isFriend) { methodStr = 'friend ' + methodStr }
         else if (elem.isStatic) { methodStr = 'static ' + methodStr }
+
+        // make pure virtual all operation of an UMLInterface
+        else if (_parentIsInterface) {
+          // constructor can not define as virtual
+          if (!isConstructor) {
+            methodStr = 'virtual ' + methodStr
+          }
+
+          // make inline the destructor of an interface instead pure virtual
+          if (isDestructor || isConstructor) {
+            methodStr += ' {}'
+          } else {
+            methodStr += ' = 0;'
+
+            // set the elem and his parent in model to abstract (if not setted)
+            elem._parent.isAbstract = true
+            elem.isAbstract = true
+          }
+        
+          isDeclaration = false
+  
+        }
         else if (elem.isLeaf) { methodStr += ' final' }
         else if (isConstructor) { /*methodStr = 'explicit ' + methodStr*/ }
         else if (!elem.isQuery && (isReimplemented(elem) || (isDestructor && getSubClasses(elem._parent).length))) { methodStr = 'virtual ' + methodStr }
@@ -2434,7 +2464,7 @@ class CppCodeGenerator {
         //   methodStr = 'Q_INVOKABLE ' + methodStr
         // }
     
-        if (!elem.isQuery) { methodStr += ';' }
+        if (isDeclaration) { methodStr += ';' }
       }
     
       methodStr = '\n' + this.getDocuments(docs) + methodStr
