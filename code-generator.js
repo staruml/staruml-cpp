@@ -1275,6 +1275,8 @@ class CppCodeGenerator {
         if (options.genCpp) {
           bodyFile = getFilePath(_CPP_CODE_GEN_CPP)
 
+          // LOADING
+
           oldFile = this.getElemFilePath(elem)
           if (oldFile !== null) {
             oldFile += '.' + _CPP_CODE_GEN_CPP
@@ -1292,13 +1294,18 @@ class CppCodeGenerator {
               fs.unlinkSync(bodyFile)
             } catch (err) {}
           }
-    
-          // generate class cpp elem_name.cpp
-          fs.writeFileSync(bodyFile, this.writeBodySkeletonCode(elem, options, writeClassBody))
         }
+
+        //! GENERATING
 
         // generate class header elem_name.h
         fs.writeFileSync(headerFile, this.writeHeaderSkeletonCode(elem, options, writeClassHeader))
+        
+        // generate class cpp elem_name.cpp
+        if (options.genCpp)
+          fs.writeFileSync(bodyFile, this.writeBodySkeletonCode(elem, options, writeClassBody))
+        
+        // write log file
         fs.appendFileSync(this.logPath, data, 'utf8')
         
       } else if (elem instanceof type.UMLInterface) {
@@ -1328,40 +1335,41 @@ class CppCodeGenerator {
   /**
    * parse the type of used model element (to declare or to include)
    * @param {UML.ModelElement} elemType 
-   * @param {boolean} toDeclared 
+   * @param {boolean} _toDeclared 
    */
-  parseElemType (type, toDeclared) {
-    if (!type.name.length) {
+  parseElemType (_type, _toDeclared) {
+    if (!_type.name.length) {
       return
     }
 
-    var elemType = type
-    var anchestors = this.getAnchestorsClass(elemType)
+    var elemType = _type
+    const anchestors = this.getAnchestorsClass(elemType)
     if (anchestors.length) {
         elemType = anchestors[0]
     }
 
+    const alreadyInside = this.toDeclared.includes(elemType)
+
     // if already exist
-    if ((toDeclared && this.toDeclared.includes(elemType)) || this.toIncluded.includes(elemType) || elemType === this.elemToGenerate) {
-        return
+    if ((_toDeclared && alreadyInside) || this.toIncluded.includes(elemType) || elemType === this.elemToGenerate) {
+      return
     }
 
     // remove the elem in toDeclared if the new value is toIncluded
-    if (this.toDeclared.includes(elemType) && !toDeclared) {
-      var i
-        for (i = 0; i < this.toDeclared.length; i++) {
-            if (this.toDeclared[i] === elemType) {
-                break
-            }
+    if (alreadyInside && !_toDeclared) {
+      for (var i = 0; i < this.toDeclared.length; i++) {
+        if (this.toDeclared[i] === elemType) {
+          this.toDeclared.splice(i, 1)
+          break
         }
-        this.toDeclared.splice(i, 1)
+      }
     }
 
     // add the elem
-    if (toDeclared) {
-        this.toDeclared.push(elemType)
+    if (_toDeclared) {
+      this.toDeclared.push(elemType)
     } else {
-        this.toIncluded.push(elemType)
+      this.toIncluded.push(elemType)
     }
   }
 
@@ -1633,12 +1641,14 @@ class CppCodeGenerator {
             break
           }
         }
+
         for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
           if (cppCodeGen.toDeclared[i].name === 'QObject') {
-            cppCodeGen.toDeclared.splice(i)
+            cppCodeGen.toDeclared.splice(i, 1)
             break
           }
         }
+
         if (!qobjectFound) {
           cppCodeGen.parseUnrecognizedType('QObject')
         }
@@ -1673,14 +1683,22 @@ class CppCodeGenerator {
         associationComp.push(target)
       }
 
+      // filter toDeclared elems
+      var reDeclareds = []
       for (i = 0; i < cppCodeGen.toDeclared.length; i++) {
         var target = cppCodeGen.toDeclared[i]
         const anchestors = cppCodeGen.getAnchestorsClass(target)
         
         if (target === elem || associationComp.includes(target) || anchestors.includes(elem)) {
+          reDeclareds.push(target)
           continue
         }
         associationComp.push(target)
+      }
+
+      // remove from the last
+      for (i = reDeclareds.length - 1; i >= 0; i--) {
+        cppCodeGen.toDeclared.splice(i, 1)
       }
 
       memberString += cppCodeGen.writeClassesDeclarations()
@@ -1942,7 +1960,12 @@ class CppCodeGenerator {
   writeClassesDeclarations () {
     var codeWriter = new codegen.CodeWriter(this.getIndentString(this.genOptions))
 
-    var getAnchestors = (elem) => {
+    /**
+     * generate a list of anchestor package,
+     * begin at the top level
+     * @param {Object} elem 
+     */
+    var getPackageAnchestors = (elem) => {
       var anchestorList = []
       var parentElem = elem._parent
 
@@ -1960,9 +1983,14 @@ class CppCodeGenerator {
       return anchestorList
     }
 
+    /**
+     * true if elem is a common package
+     * @param {Object} elem 
+     * @param {Array<Object>} elemTab 
+     */
     var isUseful = (elem, elemTab) => {
       for (var i = 0; i < elemTab.length; i++) {
-        var anchestors = getAnchestors(elemTab[i])
+        var anchestors = getPackageAnchestors(elemTab[i])
 
         if (!anchestors.length) {
           continue
@@ -1976,6 +2004,12 @@ class CppCodeGenerator {
       return false
     }
 
+    /**
+     * write the C++ declaration of the elem followed by their childs
+     * @param {Object} elem top level anchestor
+     * @param {writer} codeWriter 
+     * @param {Array<Object>} elemTab 
+     */
     var writeDeclaration = (elem, codeWriter, elemTab) => {
       if ((elem instanceof type.UMLClass || elem instanceof type.UMLPrimitiveType || elem instanceof type.UMLInterface) && elemTab.includes(elem)) {
         codeWriter.writeLine('class ' + elem.name + ';')
@@ -1991,37 +2025,39 @@ class CppCodeGenerator {
       }
     }
 
-    var elemTab = this.toDeclared
-    var originAnchestorList = []
-    var noAnchestorList = []
+    const elemTab = this.toDeclared
+    var commonOriginPackageAnchestors = []
+    var noPackageAnchestors = []
 
     // get all common anchestor
     for (var i = 0; i < elemTab.length; i++) {
-      if (elemTab[i] instanceof type.UMLPrimitiveType || !getAnchestors(elemTab[i]).length) {
-        noAnchestorList.push(elemTab[i])
+      const _currentElem = elemTab[i]
+      const _packageAnchestors = getPackageAnchestors(_currentElem)
+
+      if (_currentElem instanceof type.UMLPrimitiveType || !_packageAnchestors.length) {
+        noPackageAnchestors.push(_currentElem)
         continue
       }
-      var origin = getAnchestors(elemTab[i])[0]
+      const origin = _packageAnchestors[0]
       
-      if (originAnchestorList.length && originAnchestorList.includes(origin)) {
-          continue
+      if (!commonOriginPackageAnchestors.includes(origin)) {
+        commonOriginPackageAnchestors.push(origin)
       }
-      originAnchestorList.push(origin)
     }
 
     // for the beauty of code
     if (elemTab.length) {
-        codeWriter.writeLine()
+      codeWriter.writeLine()
     }
 
-    // write each class doesn't have anchestor first
-    for (i = 0; i < noAnchestorList.length; i++) {
-      writeDeclaration(noAnchestorList[i], codeWriter, elemTab)
+    // write each class doesn't have anchestor
+    for (i = 0; i < noPackageAnchestors.length; i++) {
+      writeDeclaration(noPackageAnchestors[i], codeWriter, elemTab)
     }
 
     // locate the class in each subAnchestor of each achestor
-    for (i = 0; i < originAnchestorList.length; i++) {
-      writeDeclaration(originAnchestorList[i], codeWriter, elemTab)
+    for (i = 0; i < commonOriginPackageAnchestors.length; i++) {
+      writeDeclaration(commonOriginPackageAnchestors[i], codeWriter, elemTab)
     }
 
     // for the beauty of code
