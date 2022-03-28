@@ -4,7 +4,9 @@
   "description": "C++ code generation and reverse engineering.",
   "homepage": "https://github.com/staruml/staruml-cpp",
   "issues": "https://github.com/staruml/staruml-cpp/issues",
-  "keywords": ["c++"],
+  "keywords": [
+    "c++"
+  ],
   "version": "0.9.2",
   "author": {
     "name": "Dongjoon Lee",
@@ -13,6 +15,6 @@
   },
   "license": "MIT",
   "engines": {
-    "staruml": "^3.0.0"
+    "staruml": ">=3.0.0"
   }
 }
