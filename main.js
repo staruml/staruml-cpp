@@ -29,6 +29,7 @@ function getGenOptions () {
     useTab: app.preferences.get('cpp.gen.useTab'),
     indentSpaces: app.preferences.get('cpp.gen.indentSpaces'),
     useVector: app.preferences.get('cpp.gen.useVector'),
+    usePragmaOnce: app.preferences.get('cpp.gen.usePragmaOnce'),
     includeHeader: app.preferences.get('cpp.gen.includeHeader'),
     genCpp: app.preferences.get('cpp.gen.genCpp')
   }

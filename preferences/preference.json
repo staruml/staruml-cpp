@@ -30,6 +30,12 @@
       "type": "check",
       "default": true
     },
+    "cpp.gen.usePragmaOnce": {
+      "text": "Use #pragma once instead of #include guards",
+      "description": "Use #pragma once instead of #include guards in header files.",
+      "type": "check",
+      "default": false
+    },
     "cpp.gen.genCpp": {
       "text": "Generate *.cpp file",
       "description": "Generate cpp file",
