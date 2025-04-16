@@ -175,13 +175,13 @@ class CppCodeGenerator {
         var asso = associations[i];
         if (
           asso.end1.reference === elem &&
-          asso.end2.navigable === true &&
+          asso.end2.navigable !== "notNavigable" &&
           asso.end2.name.length !== 0
         ) {
           memberAttr.push(asso.end2);
         } else if (
           asso.end2.reference === elem &&
-          asso.end1.navigable === true &&
+          asso.end1.navigable !== "notNavigable" &&
           asso.end1.name.length !== 0
         ) {
           memberAttr.push(asso.end1);
@@ -504,13 +504,13 @@ class CppCodeGenerator {
       var target;
       if (
         asso.end1.reference === elem &&
-        asso.end2.navigable === true &&
+        asso.end2.navigable !== "notNavigable" &&
         asso.end2.name.length !== 0
       ) {
         target = asso.end2.reference;
       } else if (
         asso.end2.reference === elem &&
-        asso.end1.navigable === true &&
+        asso.end1.navigable !== "notNavigable" &&
         asso.end1.name.length !== 0
       ) {
         target = asso.end1.reference;
